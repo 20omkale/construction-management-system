@@ -195,24 +195,22 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const startServer = () => {
-  const server = app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`📁 Base URL: http://localhost:${PORT}`);
-    console.log('⚠️  DB will connect on first request. Update DATABASE_URL in .env if DB is unreachable.');
-  });
-
-  // Handle port-in-use and other server-level errors without crashing
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`❌ Port ${PORT} is already in use. Kill the other process or change PORT in .env.`);
-    } else {
-      console.error('❌ Server error:', err.message);
+const startServer = async () => {
+  try {
+    const dbConnected = await testDatabaseConnection();
+    if (!dbConnected) {
+      process.exit(1);
     }
-  });
 
-  return server;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📁 Base URL: http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 };
 
 // Graceful shutdown
@@ -224,16 +222,6 @@ const gracefulShutdown = async () => {
 
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
-
-// Safety net: prevent stray unhandled promise rejections from crashing the process
-// (e.g. pg pool background reconnect failures when Neon is unreachable)
-process.on('unhandledRejection', (reason) => {
-  console.error('⚠️  Unhandled Promise Rejection (non-fatal):', reason?.message || reason);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('⚠️  Uncaught Exception (non-fatal):', err.message);
-});
 
 startServer();
 

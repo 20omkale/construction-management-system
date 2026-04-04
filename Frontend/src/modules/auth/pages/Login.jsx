@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../app/providers/AuthProvider'; 
+import { useAuth } from '../context/AuthContext';
 import { sendOtpAPI } from '../services/auth.service';
 
 const Login = () => {
     const navigate = useNavigate();
-    const { login, loginWithOTP } = useAuth();
+    const { login } = useAuth();
+  
 
     const [loginMethod, setLoginMethod] = useState('password'); 
     const [showPassword, setShowPassword] = useState(false);
@@ -36,7 +37,7 @@ const Login = () => {
             setIsSubmitting(true);
             const result = await login(identifier, password);
             if (result.success) {
-                navigate('/superadmin/dashboard');
+navigate('/admin/dashboard');
             } else {
                 setError(result.message || "Incorrect Password! Please try again.");
                 setIsSubmitting(false);
@@ -55,9 +56,11 @@ const Login = () => {
                 }
                 return;
             }
-            const result = await loginWithOTP(identifier, otp);
+            setError("OTP login not implemented yet");
+setIsSubmitting(false);
+return;
             if (result.success) {
-                navigate('/superadmin/dashboard');
+navigate('/admin/dashboard');
             } else {
                 setError(result.message || "Incorrect OTP! Please try again.");
                 setIsSubmitting(false);

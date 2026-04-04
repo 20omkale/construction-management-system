@@ -82,8 +82,6 @@ export const sendEmailOTP = async (email, otp) => {
     });
 
     console.log(`✅ Gmail OTP sent to: ${email}`);
-    // Show OTP in terminal for easier development tracking
-    console.log(`🔑 DEV OTP LOG: The OTP for ${email} is ${otp}`);
 
     return {
       success: true,
@@ -425,8 +423,6 @@ export const sendSMSOTP = async (phone, otp) => {
 
     if (data.Status === 'Success') {
       console.log(`✅ SMS OTP sent successfully to ${phone}`);
-      // Show OTP in terminal for easier development tracking
-      console.log(`🔑 DEV OTP LOG: The OTP for ${phone} is ${otp}`);
       return {
         success: true,
         data,

@@ -1,7 +1,7 @@
 // src/modules/inventory/services/inventory.service.js
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5001'; 
+const API_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000'; 
 
 // Mapped exactly to your index.js routes
 const INVENTORY_URL = `${API_URL}/api/v1/inventory`; 
@@ -9,7 +9,7 @@ const REQUEST_URL = `${API_URL}/api/v1/material-requests`;
 const PO_URL = `${API_URL}/api/v1/purchase-orders`;
 
 const getHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken'); // <--- CORRECT KEY
   return {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
   };

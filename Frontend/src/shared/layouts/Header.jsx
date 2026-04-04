@@ -1,32 +1,54 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from "react-router-dom";
 
-const Header = () => {
-  const navigate = useNavigate(); // <-- This is the crucial fix
+export default function Header({ title = 'Dashboard', onMenuClick }) {
+  const location = useLocation();
+  const isSuperAdmin = location.pathname.startsWith('/superadmin');
+
+  // Hardcoded for now per "dev tokens" setup
+  const user = isSuperAdmin 
+    ? { name: "Super Admin User", role: "Super Admin", img: "https://i.pravatar.cc/40?img=12" }
+    : { name: "Project Admin", role: "Admin", img: "https://i.pravatar.cc/40?img=5" };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-3 flex justify-between items-center">
-      <div className="font-bold text-xl text-[#0f62fe]">SampleWeb ERP</div>
-      
-      <div className="flex items-center gap-4">
-        {/* The Navigation Button */}
-        <button 
-          onClick={() => navigate('/inventory')}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-[#0f62fe] hover:bg-[#0f62fe] hover:text-white rounded-lg transition-colors font-medium"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur border-b border-slate-100 dark:border-slate-700 px-4 md:px-6 py-3.5 flex items-center justify-between gap-4">
+      {/* Hamburger (mobile) */}
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+      >
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
+      <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">{title}</h1>
+
+      <div className="flex items-center gap-3 ml-auto">
+        {/* Bell */}
+        <button className="relative p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+          <svg className="w-5 h-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
           </svg>
-          Inventory Module
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-800"></span>
         </button>
 
-        {/* Dummy User Profile */}
-        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold">
-          A
-        </div>
+        {/* User */}
+        <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+          <img
+            src={user.img}
+            alt={user.name}
+            className="w-8 h-8 rounded-full object-cover ring-2 ring-brand-100"
+          />
+          <div className="hidden sm:block text-left">
+            <p className="text-sm font-semibold leading-none text-slate-800 dark:text-slate-100">{user.name}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{user.role}</p>
+          </div>
+          <svg className="w-4 h-4 text-slate-400 hidden sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
       </div>
     </header>
   );
-};
+}
 
-export default Header;
