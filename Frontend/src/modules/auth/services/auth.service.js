@@ -1,45 +1,36 @@
-import apiClient from '../../../api/apiClient';// Ensure this matches the exact route in your backend app.use()
-const API_URL = 'http://localhost:5000/api/v1/auth';
+// src/modules/auth/services/auth.service.js
+import axios from 'axios';
 
-// 1. Standard Password Login
+const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5001';
+const AUTH_API = `${BASE_URL}/api/v1/auth`;
+
 export const loginAPI = async (identifier, password) => {
     try {
-        const response = await apiClient.post(`${API_URL}/login`, { 
-            identifier, 
-            password 
-        });
-
-          console.log("🔥 LOGIN RESPONSE:", response.data); 
+        const response = await axios.post(`${AUTH_API}/login`, { identifier, password });
         return response.data; 
     } catch (error) {
-        const errorMessage = error.response?.data?.message || "Login failed. Please try again.";
-        throw new Error(errorMessage);
+        throw error.response?.data || { success: false, message: 'Server connection error' };
     }
 };
 
-// 2. Request OTP Code
 export const sendOtpAPI = async (identifier) => {
     try {
-        const response = await apiClient.post(`${API_URL}/login-with-otp`, { 
-            identifier 
-        });
-        return response.data;
+        const response = await axios.post(`${AUTH_API}/login-with-otp`, { identifier });
+        return response.data; 
     } catch (error) {
-        const errorMessage = error.response?.data?.message || "Failed to send OTP.";
-        throw new Error(errorMessage);
+        throw error.response?.data || { success: false, message: 'Failed to send OTP' };
     }
 };
 
-// 3. Verify OTP & Login
+// FIXED: Renamed to verifyOtpAPI to match your AuthProvider.jsx import exactly
 export const verifyOtpAPI = async (identifier, otp) => {
     try {
-        const response = await apiClient.post(`${API_URL}/verify-otp-login`, { 
-            identifier, 
-            otp 
-        });
-        return response.data;
+        const response = await axios.post(`${AUTH_API}/verify-otp-login`, { identifier, otp });
+        return response.data; 
     } catch (error) {
-        const errorMessage = error.response?.data?.message || "Invalid OTP. Please try again.";
-        throw new Error(errorMessage);
+        throw error.response?.data || { success: false, message: 'Invalid OTP' };
     }
 };
+
+const authService = { loginAPI, sendOtpAPI, verifyOtpAPI };
+export default authService;

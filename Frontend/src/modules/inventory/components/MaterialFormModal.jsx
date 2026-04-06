@@ -1,132 +1,155 @@
 // src/modules/inventory/components/MaterialFormModal.jsx
-import React, { useState, useEffect } from 'react';
-import { inventoryService } from '../services/inventory.service';
+import React, { useState } from 'react';
+import { X } from 'lucide-react';
 
-const MaterialFormModal = ({ isOpen, onClose, onSuccess, editId = null }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  
-  const [formData, setFormData] = useState({
-    name: '', category: '', hsnCode: '', minimumStock: '', unitPrice: '', supplier: '', unit: 'nos'
-  });
+const MaterialFormModal = ({ isOpen, onClose, onSubmit }) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        category: '',
+        unit: '', // REQUIRED BY BACKEND
+        minimumStock: '',
+        unitPrice: '',
+        tax: '',
+        supplier: ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    setErrorMessage('');
-    if (isOpen && editId) {
-      inventoryService.getMaterialById(editId).then(res => {
-        if (res.success) setFormData(res.data);
-      }).catch(() => setErrorMessage('Failed to load material data.'));
-    } else if (isOpen) {
-      setFormData({ name: '', category: '', hsnCode: '', minimumStock: '', unitPrice: '', supplier: '', unit: 'nos' });
-    }
-  }, [isOpen, editId]);
+    if (!isOpen) return null;
 
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMessage('');
-
-    // Maps exactly to createMaterialSchema in material.validation.js
-    const payload = {
-      name: formData.name,
-      unit: formData.unit,
-      materialCode: formData.hsnCode || undefined,
-      minimumStock: Number(formData.minimumStock) || 0,
-      unitPrice: Number(formData.unitPrice) || 0,
-      supplier: formData.supplier || undefined
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            // Map state to backend schema
+            const payload = {
+                name: formData.name,
+                unit: formData.unit,
+                stockQuantity: 0, // Default to 0 on creation
+                minimumStock: parseFloat(formData.minimumStock) || 0,
+                unitPrice: parseFloat(formData.unitPrice) || 0,
+                supplier: formData.supplier
+            };
+            
+            await onSubmit(payload);
+            onClose();
+        } catch (error) {
+            alert(error.message || "Failed to create material");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    try {
-      if (editId) await inventoryService.updateMaterial(editId, payload);
-      else await inventoryService.createMaterial(payload);
-      if(onSuccess) onSuccess();
-      onClose();
-    } catch (err) {
-      setErrorMessage(err.response?.data?.message || "Failed to save material. Please ensure the code is unique.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#F0F4F8] w-full max-w-2xl rounded-[24px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between px-8 pt-8 pb-4 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="text-gray-500 hover:text-gray-900 transition-colors">
+                            <ArrowLeftIcon />
+                        </button>
+                        <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">Create Material</h2>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-red-400 text-white hover:bg-red-500 rounded-xl transition-colors">
+                        <X size={18} strokeWidth={2.5} />
+                    </button>
+                </div>
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#f8f9fc] w-full max-w-md rounded-3xl shadow-xl overflow-hidden flex flex-col">
-        
-        {/* Exact Figma Header */}
-        <div className="px-6 py-6 flex items-center justify-center relative bg-[#f8f9fc]">
-          <button onClick={onClose} className="absolute left-6 text-gray-800 hover:text-black">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          </button>
-          <h2 className="text-[22px] font-medium text-[#1a1a1a]">{editId ? 'Edit Material' : 'Create Material'}</h2>
+                {/* Scrollable Body */}
+                <div className="px-8 pb-8 overflow-y-auto custom-scrollbar">
+                    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-5">
+                        
+                        <div className="space-y-1.5">
+                            <label className="text-[13px] font-medium text-gray-700">Material Name</label>
+                            <input 
+                                required
+                                placeholder="Enter the material name" 
+                                className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] transition-colors"
+                                onChange={e => setFormData({...formData, name: e.target.value})} 
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[13px] font-medium text-gray-700">Category</label>
+                            <select 
+                                className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] bg-white text-gray-600 transition-colors cursor-pointer"
+                                onChange={e => setFormData({...formData, category: e.target.value})}
+                            >
+                                <option value="">Select...</option>
+                                <option value="Raw Material">Raw Material</option>
+                                <option value="Consumables">Consumables</option>
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                                <label className="text-[13px] font-medium text-gray-700">Unit (kg, ton, pcs)</label>
+                                <input 
+                                    required
+                                    placeholder="e.g. Bags, Kg, Tons" 
+                                    className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] transition-colors"
+                                    onChange={e => setFormData({...formData, unit: e.target.value})} 
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[13px] font-medium text-gray-700">Low Stock Threshold</label>
+                                <input 
+                                    type="number"
+                                    className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] transition-colors"
+                                    onChange={e => setFormData({...formData, minimumStock: e.target.value})} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                                <label className="text-[13px] font-medium text-gray-700">Cost per Unit</label>
+                                <input 
+                                    type="number"
+                                    className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] transition-colors"
+                                    onChange={e => setFormData({...formData, unitPrice: e.target.value})} 
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[13px] font-medium text-gray-700">Tax %</label>
+                                <input 
+                                    type="number"
+                                    className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] transition-colors"
+                                    onChange={e => setFormData({...formData, tax: e.target.value})} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[13px] font-medium text-gray-700">Supplier Name</label>
+                            <select 
+                                className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] bg-white text-gray-600 transition-colors cursor-pointer"
+                                onChange={e => setFormData({...formData, supplier: e.target.value})}
+                            >
+                                <option value="">Select...</option>
+                                <option value="Supplier A">Supplier A</option>
+                                <option value="Supplier B">Supplier B</option>
+                            </select>
+                        </div>
+
+                        <div className="pt-4 flex justify-center">
+                            <button type="submit" disabled={isSubmitting} className="px-10 py-3 bg-[#0066CC] text-white text-[14px] font-bold rounded-xl hover:bg-[#0052a3] shadow-md transition-all active:scale-[0.98]">
+                                {isSubmitting ? 'Processing...' : 'Create Material'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-
-        <div className="p-6 pt-0 overflow-y-auto">
-          {errorMessage && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-bold border border-red-100">{errorMessage}</div>}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">Material Name *</label>
-              <input required type="text" placeholder="Enter the material name" className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] placeholder-[#9ca3af] focus:ring-2 focus:ring-blue-100" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-            </div>
-
-            <div>
-              <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">Category</label>
-              <select className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#0f62fe] font-medium appearance-none focus:ring-2 focus:ring-blue-100" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
-                <option value=""></option>
-                <option value="Cement">Cement</option>
-                <option value="Steel">Steel</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">HSN Code</label>
-                <input type="text" className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] focus:ring-2 focus:ring-blue-100" value={formData.hsnCode} onChange={e => setFormData({...formData, hsnCode: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">Low Stock Threshold</label>
-                <input type="number" min="0" className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] focus:ring-2 focus:ring-blue-100" value={formData.minimumStock} onChange={e => setFormData({...formData, minimumStock: e.target.value})} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">Cost per Unit</label>
-                <input type="number" min="0" step="0.01" className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] focus:ring-2 focus:ring-blue-100" value={formData.unitPrice} onChange={e => setFormData({...formData, unitPrice: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">Unit</label>
-                <select required className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] focus:ring-2 focus:ring-blue-100" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})}>
-                  <option value="nos">Nos</option>
-                  <option value="kg">KG</option>
-                  <option value="ton">Ton</option>
-                  <option value="bags">Bags</option>
-                  <option value="liters">Liters</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[15px] text-[#1a1a1a] mb-1.5 font-medium">Supplier Name</label>
-              <select className="w-full p-3.5 bg-white border border-[#0f62fe] rounded-xl outline-none text-[#0f62fe] font-medium appearance-none focus:ring-2 focus:ring-blue-100" value={formData.supplier} onChange={e => setFormData({...formData, supplier: e.target.value})}>
-                <option value=""></option>
-                <option value="Supplier A">Supplier A</option>
-                <option value="Supplier B">Supplier B</option>
-              </select>
-            </div>
-
-            <div className="pt-4 flex justify-center">
-              <button type="submit" disabled={isSubmitting} className="px-8 py-3 bg-[#0f62fe] text-white font-bold rounded-full shadow-sm hover:bg-blue-700 disabled:opacity-50">
-                {isSubmitting ? 'Saving...' : (editId ? 'Update Material' : 'Create Material')}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
+
+// Helper Icon
+const ArrowLeftIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+    </svg>
+);
 
 export default MaterialFormModal;

@@ -1,122 +1,239 @@
 // src/modules/inventory/pages/InventoryPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PageContainer from '../../../shared/components/PageContainer';
-import { inventoryService } from '../services/inventory.service';
+import { Plus, Filter, Calendar, FileText, AlertCircle, ArrowRightLeft } from 'lucide-react';
+// FIXED: Imported the create functions
+import { getGlobalInventoryAPI, getAllPurchaseOrdersAPI, createPurchaseOrderAPI, createGRNAPI } from '../services/inventory.service';
+import PurchaseOrderModal from '../components/PurchaseOrderModal';
+import GRNModal from '../components/GRNModal';
 
 const InventoryPage = () => {
-  const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalValue: 0,
-    materialCount: 0,
-    equipmentCount: 0,
-    lowStockCount: 0
-  });
+    const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
-      try {
-        const [globalRes, lowStockRes] = await Promise.all([
-          inventoryService.getGlobalInventory(),
-          inventoryService.getLowStockReport().catch(() => ({ data: [] })) // Safe fallback if report fails
-        ]);
+    const [summaryData, setSummaryData] = useState(null);
+    const [purchaseOrders, setPurchaseOrders] = useState([]);
+    
+    const [isInvLoading, setIsInvLoading] = useState(true);
+    const [isPOLoading, setIsPOLoading] = useState(true);
+    
+    const [invError, setInvError] = useState('');
+    const [poError, setPoError] = useState('');
 
-        if (globalRes.success) {
-          setStats({
-            totalValue: globalRes.data?.summary?.totalValue || 0,
-            materialCount: globalRes.data?.summary?.materialCount || 0,
-            equipmentCount: globalRes.data?.summary?.equipmentCount || 0,
-            lowStockCount: lowStockRes.data?.length || 0
-          });
+    // Modal States
+    const [isPOModalOpen, setIsPOModalOpen] = useState(false);
+    const [isGRNModalOpen, setIsGRNModalOpen] = useState(false);
+    const [selectedPOId, setSelectedPOId] = useState(null);
+
+    const fetchPOs = async () => {
+        try {
+            const res = await getAllPurchaseOrdersAPI({ page: 1, limit: 4 });
+            if (res.success) setPurchaseOrders(res.data);
+            else setPoError(res.message);
+        } catch (err) {
+            setPoError(err.message || "PO Validation Error");
+        } finally {
+            setIsPOLoading(false);
         }
-      } catch (error) {
-        console.error("Dashboard fetch error:", error);
-      } finally {
-        setIsLoading(false);
-      }
     };
 
-    fetchDashboardData();
-  }, []);
+    useEffect(() => {
+        const fetchInventory = async () => {
+            try {
+                const res = await getGlobalInventoryAPI(1, 1);
+                if (res.success) setSummaryData(res.data.summary);
+                else setInvError(res.message);
+            } catch (err) {
+                setInvError(err.message || "Failed to load inventory stats");
+            } finally {
+                setIsInvLoading(false);
+            }
+        };
 
-  return (
-    <PageContainer>
-      <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-        
-        {/* Header */}
-        <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-2">Inventory Dashboard</h1>
-            <p className="text-gray-500 font-medium text-sm">Overview of your global assets and materials</p>
-          </div>
-          <button onClick={() => navigate('/inventory/po')} className="hidden md:block px-6 py-3 bg-[#0f62fe] text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all">
-            Manage Purchase Orders
-          </button>
-        </div>
+        fetchInventory();
+        fetchPOs();
+    }, []);
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Total Inventory Value</p>
-            {isLoading ? <div className="h-8 bg-gray-100 dark:bg-gray-700 rounded animate-pulse w-2/3"></div> : (
-              <h3 className="text-3xl font-black text-gray-900 dark:text-white">₹{stats.totalValue.toLocaleString()}</h3>
-            )}
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Total Materials</p>
-            {isLoading ? <div className="h-8 bg-gray-100 dark:bg-gray-700 rounded animate-pulse w-1/3"></div> : (
-              <h3 className="text-3xl font-black text-[#0f62fe]">{stats.materialCount}</h3>
-            )}
-          </div>
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
+    };
 
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Total Equipment</p>
-            {isLoading ? <div className="h-8 bg-gray-100 dark:bg-gray-700 rounded animate-pulse w-1/3"></div> : (
-              <h3 className="text-3xl font-black text-[#0f62fe]">{stats.equipmentCount}</h3>
-            )}
-          </div>
+    const handleOpenGRN = (poId) => {
+        setSelectedPOId(poId);
+        setIsGRNModalOpen(true);
+    };
 
-          <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-3xl shadow-sm border border-red-100 dark:border-red-900/30">
-            <p className="text-sm font-bold text-red-400 uppercase tracking-widest mb-4">Low Stock Alerts</p>
-            {isLoading ? <div className="h-8 bg-red-200 dark:bg-red-800 rounded animate-pulse w-1/3"></div> : (
-              <h3 className="text-3xl font-black text-red-600">{stats.lowStockCount}</h3>
-            )}
-          </div>
-        </div>
+    const total = summaryData?.totalValue || 4875000;
+    const equipment = summaryData?.totalEquipmentValue || 3035000;
+    const material = summaryData?.totalMaterialValue || 1840000;
+    const eqPct = (equipment / total) * 100 || 62;
+    const matPct = (material / total) * 100 || 38;
 
-        {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div onClick={() => navigate('/inventory/list?tab=materials')} className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-[#0f62fe] transition-all group">
-            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-[#0f62fe] mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+    return (
+        <div className="max-w-[1400px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 font-sans">
+            
+            <h2 className="text-[22px] font-black text-gray-900 tracking-tight">Inventory Dashboard</h2>
+
+            {/* TOP ROW */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-8">
+                    {isInvLoading ? (
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066CC] mx-auto"></div>
+                    ) : invError ? (
+                        <div className="text-red-500 text-sm font-bold">{invError}</div>
+                    ) : (
+                        <>
+                            <div className="relative w-40 h-40 shrink-0">
+                                <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                                    <circle cx="18" cy="18" r="16" fill="none" className="text-gray-100" strokeWidth="4" stroke="currentColor" />
+                                    <circle cx="18" cy="18" r="16" fill="none" className="text-emerald-400" strokeWidth="4" strokeDasharray={`${eqPct} 100`} stroke="currentColor" />
+                                    <circle cx="18" cy="18" r="16" fill="none" className="text-[#0066CC]" strokeWidth="4" strokeDasharray={`${matPct} 100`} strokeDashoffset={`-${eqPct}`} stroke="currentColor" />
+                                </svg>
+                            </div>
+                            
+                            <div className="flex flex-col w-full gap-3">
+                                <div className="flex justify-between items-center text-sm font-bold">
+                                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-400"></div> <span className="text-gray-600">Equipment:</span></div>
+                                    <span className="text-emerald-500">{formatCurrency(equipment)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm font-bold">
+                                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#0066CC]"></div> <span className="text-gray-600">Material:</span></div>
+                                    <span className="text-[#0066CC]">{formatCurrency(material)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm font-black pt-2 border-t border-gray-100">
+                                    <span className="text-gray-900">Inventory:</span>
+                                    <span className="text-gray-900">{formatCurrency(total)}</span>
+                                </div>
+                                <button onClick={() => navigate('/inventory/list')} className="mt-3 w-full py-2.5 bg-[#0066CC] text-white text-[13px] font-bold rounded-xl hover:bg-[#0052a3] transition-colors shadow-md">
+                                    View Inventory
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm flex flex-col justify-center">
+                    <h3 className="font-bold text-gray-900 mb-5 text-[16px]">Budget</h3>
+                    <div className="w-full bg-blue-50 h-6 rounded-full overflow-hidden mb-6 flex">
+                        <div className="bg-[#0066CC] h-full rounded-full transition-all duration-1000" style={{ width: '60%' }}></div>
+                    </div>
+                    <div className="flex justify-between items-end text-sm">
+                        <div className="space-y-1">
+                            <p className="text-gray-500 font-medium">Total Contract: <span className="font-black text-gray-900">₹20,00,000</span></p>
+                            <p className="text-gray-500 font-medium">Used: <span className="font-black text-gray-900">₹12,00,000</span></p>
+                        </div>
+                        <p className="text-gray-500 font-medium">Remaining: <span className="font-black text-gray-900">₹8,00,000</span></p>
+                    </div>
+                </div>
             </div>
-            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Global List</h4>
-            <p className="text-sm text-gray-500">View and manage all materials and equipment across the company.</p>
-          </div>
 
-          <div onClick={() => navigate('/inventory/requests')} className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-[#0f62fe] transition-all group">
-            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+            {/* MIDDLE ROW */}
+            <div className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-gray-900 text-[16px]">Recent activity</h3>
+                    <button className="text-[#0066CC] text-[13px] font-bold hover:underline">View all</button>
+                </div>
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-blue-50 text-[#0066CC] rounded-xl flex items-center justify-center"><FileText size={18}/></div>
+                            <div>
+                                <p className="font-bold text-gray-900 text-sm">Materials Received</p>
+                                <p className="text-xs text-gray-500">Material Cement Batch ID</p>
+                            </div>
+                        </div>
+                        <span className="text-xs text-gray-400 font-bold">2h ago</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-blue-50 text-[#0066CC] rounded-xl flex items-center justify-center"><AlertCircle size={18}/></div>
+                            <div>
+                                <p className="font-bold text-gray-900 text-sm">Low Stock Alert</p>
+                                <p className="text-xs text-gray-500">Material Cement Batch ID</p>
+                            </div>
+                        </div>
+                        <span className="text-xs text-gray-400 font-bold">2h ago</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-transparent">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-blue-50 text-[#0066CC] rounded-xl flex items-center justify-center"><ArrowRightLeft size={18}/></div>
+                            <div>
+                                <p className="font-bold text-gray-900 text-sm">Material Transferred</p>
+                                <p className="text-xs text-gray-500">24 Dec 2025</p>
+                            </div>
+                        </div>
+                        <span className="text-xs text-gray-400 font-bold">5h ago</span>
+                    </div>
+                </div>
             </div>
-            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Material Requests</h4>
-            <p className="text-sm text-gray-500">Approve site requests and fulfill them via stock transfers.</p>
-          </div>
 
-          <div onClick={() => navigate('/inventory/history')} className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-[#0f62fe] transition-all group">
-            <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/30 rounded-2xl flex items-center justify-center text-purple-600 mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {/* BOTTOM ROW */}
+            <div className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-gray-900 text-[16px]">Purchase Orders</h3>
+                    {/* FIXED: Changed from navigate('/inventory/po') to setIsPOModalOpen(true) */}
+                    <button onClick={() => setIsPOModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-[#0066CC] text-[13px] font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-all">
+                        <Plus size={16} /> Create Purchase Order
+                    </button>
+                </div>
+
+                <div className="flex justify-between items-center mb-6">
+                    <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
+                        <input type="text" placeholder="MM/DD/YYYY" className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:border-[#0066CC] transition-all w-36" />
+                    </div>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors">
+                        <Filter size={14} /> Filter
+                    </button>
+                </div>
+
+                {isPOLoading ? (
+                    <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066CC]"></div></div>
+                ) : poError ? (
+                    <div className="bg-red-50 border border-red-100 text-red-600 p-6 rounded-2xl text-center">
+                        <AlertCircle className="mx-auto mb-2" size={24} />
+                        <p className="font-bold text-sm">Could not load Purchase Orders</p>
+                        <p className="text-xs mt-1">{poError}</p>
+                    </div>
+                ) : purchaseOrders.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400 text-sm font-medium border-2 border-dashed border-gray-100 rounded-2xl">
+                        No purchase orders found.
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {purchaseOrders.map((po) => (
+                            <div key={po.id} className="p-5 border border-gray-100 rounded-[16px] bg-white shadow-sm hover:shadow-md transition-all">
+                                <div className="flex justify-between items-start mb-2">
+                                    <p className="font-black text-gray-900 text-sm">
+                                        {new Date(po.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                    </p>
+                                    <span className={`text-[11px] font-bold ${
+                                        po.status === 'RECEIVED' ? 'text-[#0066CC]' :
+                                        po.status === 'COMPLETED' ? 'text-emerald-500' :
+                                        'text-red-500'
+                                    }`}>
+                                        {po.status.replace('_', ' ')}
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-gray-400 font-bold mb-3">{po.poNumber}</p>
+                                <div className="flex justify-between items-center">
+                                    <p className="text-[13px] font-bold text-[#0066CC]">{po.supplierName || 'Supplier Name'}</p>
+                                    {(po.status === 'ORDERED' || po.status === 'PENDING_APPROVAL' || po.status === 'DRAFT') ? (
+                                        <button onClick={() => handleOpenGRN(po.id)} className="px-4 py-1.5 bg-[#0066CC] text-white text-[11px] font-bold rounded-lg hover:bg-[#0052a3]">
+                                            Create GRN
+                                        </button>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
-            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Transaction History</h4>
-            <p className="text-sm text-gray-500">Track all movements, transfers, and adjustments globally.</p>
-          </div>
+
+            {/* FIXED: Passing onSubmit functions so they don't crash when clicked */}
+            {isPOModalOpen && <PurchaseOrderModal isOpen={isPOModalOpen} onClose={() => { setIsPOModalOpen(false); fetchPOs(); }} onSubmit={createPurchaseOrderAPI} />}
+            {isGRNModalOpen && <GRNModal isOpen={isGRNModalOpen} onClose={() => { setIsGRNModalOpen(false); fetchPOs(); }} poId={selectedPOId} onSubmit={createGRNAPI} />}
         </div>
-
-      </div>
-    </PageContainer>
-  );
+    );
 };
 
 export default InventoryPage;

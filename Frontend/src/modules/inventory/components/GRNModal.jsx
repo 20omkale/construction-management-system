@@ -1,139 +1,161 @@
 // src/modules/inventory/components/GRNModal.jsx
 import React, { useState } from 'react';
-import { inventoryService } from '../services/inventory.service';
+import { X, UploadCloud, FileIcon } from 'lucide-react';
 
-const GRNModal = ({ isOpen, onClose, poData, onSuccess }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  
-  const [receivedQty, setReceivedQty] = useState('');
-  const [qualityCheck, setQualityCheck] = useState('Approved');
-  const [rateSupplier, setRateSupplier] = useState('5 Stars');
-  const [remarks, setRemarks] = useState('');
+const GRNModal = ({ isOpen, onClose, poId, onSubmit }) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        receivedQuantity: '',
+        qualityCheck: '',
+        rateSupplier: '',
+        remarks: ''
+    });
 
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
-  // Safely extract item data for the UI and Backend payload
-  const poItem = poData?.items?.[0];
-  const poItemId = poItem?.id || "fallback-id";
-  const orderedQty = poItem?.quantity || 0;
-  const description = poItem?.description || "Material Batch";
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMessage('');
-
-    // Payload perfectly mapped to createGoodsReceiptSchema
-    const payload = {
-      purchaseOrderId: poData?.id,
-      notes: remarks,
-      items: [
-        {
-          poItemId: poItemId, // Required by backend
-          receivedQuantity: Number(receivedQty),
-          acceptedQuantity: Number(receivedQty),
-          inspectionStatus: qualityCheck === 'Approved' ? 'PASSED' : 'FAILED',
-          qualityRating: 'GOOD' // Default to pass Zod schema
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            // Constructing basic payload for the backend controller
+            const payload = {
+                purchaseOrderId: poId,
+                notes: formData.remarks,
+                items: [{
+                    poItemId: "item-id-here", // In reality, this needs to be fetched from the PO details
+                    receivedQuantity: parseFloat(formData.receivedQuantity) || 0,
+                    qualityRating: formData.qualityCheck
+                }]
+            };
+            
+            await onSubmit(payload);
+            onClose();
+        } catch (error) {
+            alert(error.message || "Failed to create GRN");
+        } finally {
+            setIsSubmitting(false);
         }
-      ]
     };
 
-    try {
-      await inventoryService.createGRN(payload);
-      if (onSuccess) onSuccess();
-      onClose();
-    } catch (err) {
-      setErrorMessage(err.response?.data?.message || "Failed to process GRN. Ensure PO ID and Item ID are valid.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#F0F4F8] w-full max-w-3xl rounded-[24px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between px-8 pt-8 pb-4 shrink-0">
+                    <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">Create GRN</h2>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-red-400 text-white hover:bg-red-500 rounded-xl transition-colors">
+                        <X size={18} strokeWidth={2.5} />
+                    </button>
+                </div>
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#f8f9fc] w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-        
-        {/* Exact Figma Header */}
-        <div className="px-6 py-6 flex items-center justify-between bg-[#f8f9fc] border-b border-gray-100">
-          <h2 className="text-[22px] font-bold text-[#1a1a1a]">Create GRN</h2>
-          <button type="button" onClick={onClose} className="w-8 h-8 bg-[#ff4d4f] text-white rounded-full flex justify-center items-center hover:bg-red-600 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+                {/* Scrollable Form Body */}
+                <div className="px-8 pb-8 overflow-y-auto custom-scrollbar">
+                    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
+                        
+                        {/* Top Info */}
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-[11px] font-bold text-gray-400 uppercase">Location</p>
+                                <p className="text-[14px] font-bold text-[#0066CC]">Supplier Name</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[11px] text-gray-500">Sent: 13 Oct 2026</p>
+                                <p className="text-[11px] text-gray-500">Received: 12 JAN 2026</p>
+                            </div>
+                        </div>
+
+                        {/* Particulars Table */}
+                        <div className="border border-gray-100 rounded-xl overflow-hidden">
+                            <table className="w-full text-left">
+                                <thead className="bg-gray-50 border-b border-gray-100">
+                                    <tr>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">SR. NO.</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">PARTICULARS</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">ORDERED</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">RECEIVED</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr className="border-b border-gray-50">
+                                        <td className="px-4 py-4 text-[13px] font-bold text-gray-900">01</td>
+                                        <td className="px-4 py-4 text-[13px] font-medium text-gray-700">Particular 1</td>
+                                        <td className="px-4 py-4 text-[13px] font-bold text-gray-900 text-center">Number</td>
+                                        <td className="px-4 py-2 text-right">
+                                            <input 
+                                                type="number" 
+                                                className="w-20 px-3 py-2 border border-[#8AB4F8] rounded-lg text-[13px] outline-none focus:border-[#0066CC] text-center ml-auto"
+                                                onChange={e => setFormData({...formData, receivedQuantity: e.target.value})}
+                                            />
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Dropdowns */}
+                        <div className="grid grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                                <label className="text-[13px] font-bold text-gray-600">Quality Check</label>
+                                <select 
+                                    className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none text-gray-600 bg-white focus:border-[#0066CC]"
+                                    onChange={e => setFormData({...formData, qualityCheck: e.target.value})}
+                                >
+                                    <option value="">Select...</option>
+                                    <option value="GOOD">Good</option>
+                                    <option value="REJECTED">Rejected</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[13px] font-bold text-gray-600">Rate Supplier</label>
+                                <select 
+                                    className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none text-gray-600 bg-white focus:border-[#0066CC]"
+                                    onChange={e => setFormData({...formData, rateSupplier: e.target.value})}
+                                >
+                                    <option value="">Select...</option>
+                                    <option value="5">5 Stars</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Remarks */}
+                        <div className="space-y-1.5">
+                            <label className="text-[13px] font-bold text-gray-600">Remarks</label>
+                            <textarea 
+                                rows="2"
+                                className="w-full px-4 py-3 border border-[#8AB4F8] rounded-xl text-[14px] outline-none focus:border-[#0066CC] resize-none"
+                                onChange={e => setFormData({...formData, remarks: e.target.value})} 
+                            ></textarea>
+                        </div>
+
+                        {/* File Uploads */}
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-[13px] font-bold text-gray-600 mb-2">Upload Goods Photos</p>
+                                <button type="button" className="w-20 h-20 border-2 border-dashed border-[#0066CC] rounded-xl flex items-center justify-center text-[#0066CC] hover:bg-blue-50 transition-colors">
+                                    <Plus size={24} />
+                                </button>
+                            </div>
+                            
+                            <div>
+                                <p className="text-[13px] font-bold text-gray-600 mb-2">Receipt</p>
+                                <button type="button" className="flex items-center gap-2 px-4 py-2 border border-[#8AB4F8] text-[#0066CC] font-bold text-[13px] rounded-lg hover:bg-blue-50 transition-colors">
+                                    <FileIcon size={16} /> Select file
+                                </button>
+                                <p className="text-[10px] text-gray-400 mt-1">Upload a jpeg, jpg, png, pdf no larger than 10 MB</p>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 flex justify-center">
+                            <button type="submit" disabled={isSubmitting} className="px-10 py-3 bg-[#0066CC] text-white text-[14px] font-bold rounded-xl hover:bg-[#0052a3] shadow-md transition-all active:scale-[0.98]">
+                                {isSubmitting ? 'Processing...' : 'Create GRN'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-
-        <div className="p-6 overflow-y-auto custom-scrollbar bg-white m-4 rounded-2xl shadow-sm border border-gray-50">
-          {errorMessage && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-bold border border-red-100">{errorMessage}</div>}
-
-          <div className="mb-6 flex justify-between">
-            <div>
-              <p className="text-[13px] text-gray-400 font-medium mb-1">Location / Supplier</p>
-              <p className="font-bold text-[#0f62fe] text-lg">{poData?.supplierName || poData?.supplier?.name || 'Unknown Supplier'}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[13px] text-gray-400 font-bold mb-1 uppercase tracking-wider">PO ID: {poData?.poNumber || poData?.id || 'N/A'}</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Exact Figma Table Layout */}
-            <div className="border border-gray-100 rounded-xl overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-gray-600 font-bold text-[12px]">
-                  <tr>
-                    <th className="p-4 uppercase tracking-wider">SR. NO.</th>
-                    <th className="p-4 uppercase tracking-wider">PARTICULARS</th>
-                    <th className="p-4 uppercase tracking-wider">ORDERED</th>
-                    <th className="p-4 uppercase tracking-wider">RECEIVED</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  <tr>
-                    <td className="p-4 text-gray-500">01</td>
-                    <td className="p-4 font-medium text-gray-900">{description}</td>
-                    <td className="p-4 text-gray-500">{orderedQty}</td>
-                    <td className="p-3">
-                      <input required type="number" min="0" max={orderedQty > 0 ? orderedQty : undefined} className="w-24 p-2.5 border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] focus:ring-2 focus:ring-blue-100" value={receivedQty} onChange={e => setReceivedQty(e.target.value)} />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label className="block text-[14px] text-gray-700 mb-1.5 font-medium">Quality Check</label>
-                <select className="w-full p-3.5 border border-[#0f62fe] rounded-xl outline-none text-[#0f62fe] bg-white font-medium appearance-none focus:ring-2 focus:ring-blue-100" value={qualityCheck} onChange={e => setQualityCheck(e.target.value)}>
-                  <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[14px] text-gray-700 mb-1.5 font-medium">Rate Supplier</label>
-                <select className="w-full p-3.5 border border-[#0f62fe] rounded-xl outline-none text-[#0f62fe] bg-white font-medium appearance-none focus:ring-2 focus:ring-blue-100" value={rateSupplier} onChange={e => setRateSupplier(e.target.value)}>
-                  <option value="5 Stars">5 Stars</option>
-                  <option value="4 Stars">4 Stars</option>
-                  <option value="3 Stars">3 Stars</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[14px] text-gray-700 mb-1.5 font-medium">Remarks</label>
-              <textarea rows="3" className="w-full p-3.5 border border-[#0f62fe] rounded-xl outline-none text-[#1a1a1a] resize-none focus:ring-2 focus:ring-blue-100" value={remarks} onChange={e => setRemarks(e.target.value)}></textarea>
-            </div>
-
-            <div className="pt-2 flex justify-center">
-              <button type="submit" disabled={isSubmitting} className="px-10 py-3.5 bg-[#0f62fe] text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all disabled:opacity-50">
-                {isSubmitting ? 'Processing...' : 'Confirm Receipt'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default GRNModal;

@@ -1,61 +1,158 @@
 // src/modules/inventory/services/inventory.service.js
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000'; 
-
-// Mapped exactly to your index.js routes
-const INVENTORY_URL = `${API_URL}/api/v1/inventory`; 
-const REQUEST_URL = `${API_URL}/api/v1/material-requests`; 
-const PO_URL = `${API_URL}/api/v1/purchase-orders`;
+const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5001';
+const INVENTORY_API = `${BASE_URL}/api/v1/inventory`;
+const PO_API = `${BASE_URL}/api/v1/purchase-orders`;
+const SUPPLIER_API = `${BASE_URL}/api/v1/suppliers`;
 
 const getHeaders = () => {
-  const token = localStorage.getItem('accessToken'); // <--- CORRECT KEY
-  return {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-  };
+    const token = localStorage.getItem('accessToken');
+    return {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    };
 };
 
+// ==========================================
+// GLOBAL INVENTORY DASHBOARD
+// ==========================================
+export const getGlobalInventoryAPI = async (page = 1, limit = 20, search = '') => {
+    try {
+        let url = `${INVENTORY_API}/global?page=${page}&limit=${limit}`;
+        if (search) url += `&search=${search}`;
+        const response = await axios.get(url, getHeaders());
+        return response.data; 
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Server connection error' };
+    }
+};
+
+// ==========================================
+// PROJECT SPECIFIC INVENTORY
+// ==========================================
+export const getProjectInventoryAPI = async (projectId, search = '') => {
+    try {
+        // Perfectly matched to your backend: /api/inventory/project/:projectId
+        let url = `${INVENTORY_API}/project/${projectId}`;
+        if (search) url += `?search=${search}`;
+        const response = await axios.get(url, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to fetch project inventory' };
+    }
+};
+
+// ==========================================
+// MATERIALS & EQUIPMENTS LISTS
+// ==========================================
+export const getMaterialsAPI = async (search = '') => {
+    try {
+        let url = `${INVENTORY_API}/materials`;
+        if (search) url += `?search=${search}`;
+        const response = await axios.get(url, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to fetch materials' };
+    }
+};
+
+export const getEquipmentsAPI = async (search = '') => {
+    try {
+        let url = `${INVENTORY_API}/equipment`;
+        if (search) url += `?search=${search}`;
+        const response = await axios.get(url, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to fetch equipment' };
+    }
+};
+
+// ==========================================
+// SUPPLIERS
+// ==========================================
+export const getAllSuppliersAPI = async () => {
+    try {
+        const response = await axios.get(`${SUPPLIER_API}`, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to fetch suppliers' };
+    }
+};
+
+// ==========================================
+// CREATE MATERIALS & EQUIPMENTS
+// ==========================================
+export const createMaterialAPI = async (data) => {
+    try {
+        const response = await axios.post(`${INVENTORY_API}/materials`, data, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to create material' };
+    }
+};
+
+export const createEquipmentAPI = async (data) => {
+    try {
+        const response = await axios.post(`${INVENTORY_API}/equipment`, data, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to add equipment' };
+    }
+};
+
+// ==========================================
+// PURCHASE ORDERS & GRN
+// ==========================================
+export const getAllPurchaseOrdersAPI = async (params = {}) => {
+    try {
+        const queryParams = new URLSearchParams({ page: params.page || 1, limit: params.limit || 20 });
+        if (params.search) queryParams.append('search', params.search);
+        if (params.status) queryParams.append('status', params.status);
+        if (params.fromDate) queryParams.append('fromDate', params.fromDate);
+        if (params.toDate) queryParams.append('toDate', params.toDate);
+
+        const response = await axios.get(`${PO_API}/?${queryParams.toString()}`, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to fetch POs' };
+    }
+};
+
+export const createPurchaseOrderAPI = async (data) => {
+    try {
+        const response = await axios.post(`${PO_API}/`, data, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to create PO' };
+    }
+};
+
+export const createGRNAPI = async (data) => {
+    try {
+        const response = await axios.post(`${PO_API}/goods-receipts`, data, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to create GRN' };
+    }
+};
+
+// ==========================================
+// EXPORTS
+// ==========================================
 export const inventoryService = {
-  // =====================================
-  // EQUIPMENT & GLOBAL INVENTORY
-  // =====================================
-  getGlobalInventory: async (params) => (await axios.get(`${INVENTORY_URL}/global`, { params, ...getHeaders() })).data,
-  getAllEquipment: async (params) => (await axios.get(`${INVENTORY_URL}/equipment`, { params, ...getHeaders() })).data,
-  getEquipmentById: async (id) => (await axios.get(`${INVENTORY_URL}/equipment/${id}`, getHeaders())).data,
-  createEquipment: async (data) => (await axios.post(`${INVENTORY_URL}/equipment`, data, getHeaders())).data,
-  updateEquipment: async (id, data) => (await axios.patch(`${INVENTORY_URL}/equipment/${id}`, data, getHeaders())).data,
-  deleteEquipment: async (id) => (await axios.delete(`${INVENTORY_URL}/equipment/${id}`, getHeaders())).data,
-  transferItem: async (payload) => (await axios.post(`${INVENTORY_URL}/transfers`, payload, getHeaders())).data,
-
-  // =====================================
-  // MATERIALS MASTER
-  // =====================================
-  getAllMaterials: async () => (await axios.get(`${INVENTORY_URL}/materials`, getHeaders())).data,
-  getMaterialById: async (id) => (await axios.get(`${INVENTORY_URL}/materials/${id}`, getHeaders())).data,
-  createMaterial: async (data) => (await axios.post(`${INVENTORY_URL}/materials`, data, getHeaders())).data,
-  updateMaterial: async (id, data) => (await axios.patch(`${INVENTORY_URL}/materials/${id}`, data, getHeaders())).data, 
-  deleteMaterial: async (id) => (await axios.delete(`${INVENTORY_URL}/materials/${id}`, getHeaders())).data,
-
-  // =====================================
-  // MATERIAL REQUESTS
-  // =====================================
-  requestItem: async (payload) => (await axios.post(REQUEST_URL, payload, getHeaders())).data,
-  getAllMaterialRequests: async (params) => (await axios.get(REQUEST_URL, { params, ...getHeaders() })).data,
-  getMaterialRequestById: async (id) => (await axios.get(`${REQUEST_URL}/${id}`, getHeaders())).data,
-  updateMaterialRequestStatus: async (id, data) => (await axios.patch(`${REQUEST_URL}/${id}/status`, data, getHeaders())).data,
-  fulfillRequestFromStock: async (payload) => (await axios.post(`${REQUEST_URL}/fulfill-transfer`, payload, getHeaders())).data,
-
-  // =====================================
-  // PURCHASE ORDERS & GRN
-  // =====================================
-  getAllPurchaseOrders: async () => (await axios.get(PO_URL, getHeaders())).data,
-  createPurchaseOrder: async (data) => (await axios.post(PO_URL, data, getHeaders())).data,
-  createGRN: async (data) => (await axios.post(`${PO_URL}/goods-receipts`, data, getHeaders())).data,
-
-  // =====================================
-  // REPORTS & DASHBOARD
-  // =====================================
-  getInventoryValuation: async () => (await axios.get(`${INVENTORY_URL}/reports/valuation`, getHeaders())).data,
-  getLowStockReport: async (params) => (await axios.get(`${INVENTORY_URL}/reports/low-stock`, { params, ...getHeaders() })).data,
-  getStockMovementReport: async (params) => (await axios.get(`${INVENTORY_URL}/reports/movement`, { params, ...getHeaders() })).data
+    getGlobalInventoryAPI,
+    getProjectInventoryAPI,
+    getMaterialsAPI,
+    getEquipmentsAPI,
+    getAllSuppliersAPI,
+    createMaterialAPI,
+    createEquipmentAPI,
+    getAllPurchaseOrdersAPI,
+    createPurchaseOrderAPI,
+    createGRNAPI
 };
+
+export default inventoryService;

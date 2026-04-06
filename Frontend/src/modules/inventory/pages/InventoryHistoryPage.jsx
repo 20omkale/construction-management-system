@@ -1,161 +1,195 @@
 // src/modules/inventory/pages/InventoryHistoryPage.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import PageContainer from '../../../shared/components/PageContainer';
-import { inventoryService } from '../services/inventory.service';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Search, Mic, Filter, Calendar, MicOff } from 'lucide-react';
+import { getMaterialRequestsAPI } from '../services/materialRequest.service';
 
 const InventoryHistoryPage = () => {
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'materials';
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [historyData, setHistoryData] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+    const navigate = useNavigate();
+    const location = useLocation();
+    
+    const activeTab = location.state?.tab || 'materials';
+    
+    const [historyData, setHistoryData] = useState([]);
+    const [filteredData, setFilteredData] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateFilter, setDateFilter] = useState('');
+    const [isListening, setIsListening] = useState(false);
 
-  useEffect(() => {
     const fetchHistory = async () => {
-      setIsLoading(true);
-      try {
-        // Fetching real movement data from backend
-        const res = await inventoryService.getStockMovementReport();
-        if (res.success && res.data) {
-          setHistoryData(res.data);
+        setIsLoading(true);
+        try {
+            if (activeTab === 'materials') {
+                const response = await getMaterialRequestsAPI(1, 50, 'ALL');
+                if (response.success) {
+                    setHistoryData(response.data);
+                    setFilteredData(response.data);
+                }
+            } else {
+                setHistoryData([]);
+                setFilteredData([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch history:", error);
+        } finally {
+            setIsLoading(false);
         }
-      } catch (error) {
-        console.error("Failed to fetch history:", error);
-        // Fallback mock data to preserve Figma UI testing if DB is empty
-        setHistoryData([
-          { id: 1, material: { name: 'Cement' }, project: { name: 'Residential Area Block 51' }, transactionType: 'REQUEST', status: 'Approved', createdAt: '2026-10-13', quantity: 12 },
-          { id: 2, material: { name: 'Steel Beams' }, project: { name: 'Residential Area Block 51' }, transactionType: 'REQUEST', status: 'Rejected', createdAt: '2026-10-13', quantity: 12 },
-          { id: 3, material: { name: 'Bricks' }, project: { name: 'Residential Area Block 51' }, transactionType: 'TRANSFER', status: 'Transferred', createdAt: '2026-10-15', quantity: 50 },
-        ]);
-      } finally {
-        setIsLoading(false);
-      }
     };
-    fetchHistory();
-  }, []);
 
-  const handleTabChange = (tab) => {
-    setSearchParams({ tab });
-  };
+    useEffect(() => {
+        fetchHistory();
+    }, [activeTab]);
 
-  const filteredHistory = historyData.filter(item => {
-    const itemName = item.material?.name || item.equipment?.name || '';
-    const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase());
-    // Filter by date if selected
-    const matchesDate = dateFilter ? item.createdAt?.startsWith(dateFilter) : true;
-    return matchesSearch && matchesDate;
-  });
+    useEffect(() => {
+        let result = historyData;
 
-  const getStatusStyles = (status) => {
-    switch (status?.toUpperCase()) {
-      case 'APPROVED': 
-      case 'COMPLETED':
-        return 'bg-[#00a887] text-white'; // Green
-      case 'REJECTED': 
-      case 'CANCELLED':
-        return 'bg-[#ff4d4f] text-white'; // Red
-      case 'TRANSFERRED': 
-      case 'TRANSFER':
-      case 'PURCHASE':
-        return 'bg-[#0f62fe] text-white'; // Blue
-      default: 
-        return 'bg-gray-400 text-white';
-    }
-  };
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(item => 
+                item.materialName?.toLowerCase().includes(query) ||
+                item.project?.name?.toLowerCase().includes(query) ||
+                item.requestNo?.toLowerCase().includes(query)
+            );
+        }
 
-  return (
-    <PageContainer>
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700 animate-in fade-in duration-300 min-h-[75vh] flex flex-col">
+        if (dateFilter) {
+            result = result.filter(item => {
+                const itemDate = new Date(item.createdAt).toISOString().split('T')[0];
+                return itemDate === dateFilter;
+            });
+        }
+
+        setFilteredData(result);
+    }, [searchQuery, dateFilter, historyData]);
+
+    const handleVoiceSearch = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Voice search is not supported in this browser. Try Chrome or Edge.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        recognition.onstart = () => setIsListening(true);
         
-        {/* Figma Header */}
-        <div className="flex items-center gap-3 mb-6 shrink-0">
-          <button onClick={() => navigate(-1)} className="text-gray-900 dark:text-white hover:text-[#0f62fe] transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          </button>
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Inventory History</h2>
-        </div>
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setSearchQuery(transcript); 
+        };
+        
+        recognition.onerror = (event) => {
+            console.error("Speech recognition error", event.error);
+            setIsListening(false);
+        };
+        
+        recognition.onend = () => setIsListening(false);
+        
+        recognition.start();
+    };
 
-        {/* Search Bar */}
-        <div className="relative w-full mb-6 shrink-0">
-          <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-          </span>
-          <input 
-            type="text" 
-            className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#0f62fe] outline-none shadow-sm transition-all dark:text-white" 
-            placeholder="Search Name"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+    const getStatusBadge = (status) => {
+        switch (status) {
+            case 'APPROVED':
+            case 'COMPLETED':
+                return <span className="bg-[#00B69B] text-white text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">Approved</span>;
+            case 'REJECTED':
+                return <span className="bg-[#FF4D4F] text-white text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">Rejected</span>;
+            case 'DELIVERED':
+                return <span className="bg-[#0066CC] text-white text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">Transferred</span>;
+            default:
+                return <span className="bg-orange-400 text-white text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{status}</span>;
+        }
+    };
 
-        {/* Tabs */}
-        <div className="flex bg-[#f0f4f8] dark:bg-gray-900 p-1.5 rounded-full w-full md:max-w-md mb-6 shrink-0">
-          <button 
-            className={`flex-1 py-2 text-sm font-bold rounded-full transition-all ${activeTab === 'materials' ? 'bg-[#0f62fe] text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
-            onClick={() => handleTabChange('materials')}
-          >
-            Materials
-          </button>
-          <button 
-            className={`flex-1 py-2 text-sm font-bold rounded-full transition-all ${activeTab === 'equipments' ? 'bg-[#0f62fe] text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
-            onClick={() => handleTabChange('equipments')}
-          >
-            Equipments
-          </button>
-        </div>
-
-        {/* Filter Row */}
-        <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-6 mb-6 shrink-0">
-          <div className="relative w-48">
-            <input 
-              type="date" 
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-500 dark:text-gray-300 dark:bg-gray-900 outline-none focus:ring-2 focus:ring-[#0f62fe]" 
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            />
-          </div>
-          <button className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg> Filter
-          </button>
-        </div>
-
-        {/* Scrollable List */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 md:pb-0">
-          {isLoading ? (
-            <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0f62fe]"></div></div>
-          ) : filteredHistory.length > 0 ? (
-            <div className="space-y-4">
-              {filteredHistory.map((item, idx) => (
-                <div key={item.id || idx} className="p-5 border border-gray-100 dark:border-gray-700 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center hover:border-blue-200 transition-all gap-4 bg-white dark:bg-gray-800">
-                  <div>
-                    <h3 className="text-[15px] font-medium text-gray-900 dark:text-white mb-1.5">{item.material?.name || item.equipment?.name || 'Unknown Item'}</h3>
-                    <p className="text-xs text-gray-400 mb-2">{item.project?.name || 'Global Warehouse'}</p>
-                    <span className="text-sm font-bold text-[#0f62fe] capitalize">{item.transactionType?.toLowerCase() || 'Transfer'}</span>
-                  </div>
-
-                  <div className="flex flex-col items-start md:items-end w-full md:w-auto">
-                    <span className={`px-4 py-1 text-[11px] font-bold rounded-full capitalize tracking-wide mb-2 ${getStatusStyles(item.status || item.transactionType)}`}>
-                      {item.status || item.transactionType}
-                    </span>
-                    <p className="text-xs text-gray-500 mb-1">{new Date(item.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                    <p className="text-xs text-gray-500">Quantity: <span className="font-bold text-gray-900 dark:text-white">{item.quantity}</span></p>
-                  </div>
-                </div>
-              ))}
+    return (
+        <div className="max-w-[1000px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 font-sans">
+            
+            {/* Header */}
+            <div>
+                <button onClick={() => navigate('/inventory/list')} className="flex items-center gap-2 text-xl font-bold text-gray-900 hover:text-[#0066CC] transition-colors mb-4">
+                    <ArrowLeft size={24} /> Inventory History
+                </button>
             </div>
-          ) : (
-            <div className="text-center py-10 text-gray-500 font-bold bg-gray-50 dark:bg-gray-900 rounded-xl">No history records match your filters.</div>
-          )}
-        </div>
 
-      </div>
-    </PageContainer>
-  );
+            {/* Main Card Wrapper */}
+            <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-6 sm:p-8 space-y-6">
+                
+                {/* Search Bar with working Voice Search */}
+                <div className="relative">
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                        type="text" 
+                        placeholder={isListening ? "Listening..." : "Search Name, Location..."}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className={`w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl text-[14px] outline-none focus:bg-white focus:border-[#0066CC] transition-all ${isListening ? 'ring-2 ring-blue-100' : ''}`}
+                    />
+                    <button 
+                        onClick={handleVoiceSearch}
+                        className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-[#0066CC]'}`}
+                        title="Search by Voice"
+                    >
+                        {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                    </button>
+                </div>
+
+                {/* Toolbar (Date & Filter) */}
+                <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+                    <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
+                        <input 
+                            type="date" 
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-600 outline-none focus:border-[#0066CC] transition-all cursor-pointer" 
+                        />
+                    </div>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[13px] font-bold text-gray-600 hover:bg-gray-100 transition-colors">
+                        <Filter size={14} /> Filter
+                    </button>
+                </div>
+
+                {/* History List */}
+                <div className="space-y-3">
+                    {isLoading ? (
+                        <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066CC]"></div></div>
+                    ) : filteredData.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 text-sm font-medium border-2 border-dashed border-gray-100 rounded-2xl">
+                            No {activeTab} history records found matching your filters.
+                        </div>
+                    ) : (
+                        filteredData.map((item) => (
+                            <div key={item.id} className="flex justify-between items-center p-4 border border-gray-100 rounded-[16px] hover:shadow-sm transition-shadow bg-white">
+                                <div>
+                                    <h4 className="text-[14px] font-bold text-gray-900 mb-0.5">{item.materialName || item.material?.name || 'Equipment Name'}</h4>
+                                    <p className="text-[12px] text-gray-400 mb-1">{item.project?.name || 'Global Inventory'}</p>
+                                    <p className="text-[12px] font-bold text-[#0066CC]">
+                                        {item.status === 'DELIVERED' ? 'Transfer' : 'Request'}
+                                    </p>
+                                </div>
+                                <div className="text-right flex flex-col items-end">
+                                    <div className="mb-1.5">
+                                        {getStatusBadge(item.status)}
+                                    </div>
+                                    <p className="text-[11px] font-medium text-gray-400 mb-0.5">
+                                        {new Date(item.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </p>
+                                    <p className="text-[11px] font-medium text-gray-400">
+                                        Quantity: <span className="font-bold text-[#0066CC]">{item.quantity}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default InventoryHistoryPage;
