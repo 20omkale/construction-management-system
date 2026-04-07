@@ -1,17 +1,27 @@
-// src/modules/projects/services/dpr.service.js
 import api from '../../../shared/utils/api'; 
 
 export const dprService = {
   // ==========================================
   // DPR CORE
   // ==========================================
+  
   createDPR: async (dprData) => {
     const response = await api.post('/dpr', dprData);
     return response.data;
   },
 
   getDPRsByProject: async (projectId, params = {}) => {
-    const response = await api.get(`/dpr/project/${projectId}`, { params });
+    // 🚨 CRITICAL FIX: Uses the global '/dpr' route with projectId as a query param to bypass 400 Bad Request
+    const queryParams = {
+      projectId: projectId,
+      page: params.page || 1,
+      limit: params.limit || 100,
+      ...(params.startDate && { startDate: params.startDate }),
+      ...(params.endDate && { endDate: params.endDate }),
+      ...(params.status && { status: params.status })
+    };
+
+    const response = await api.get('/dpr', { params: queryParams });
     return response.data;
   },
 
@@ -25,9 +35,15 @@ export const dprService = {
     return response.data;
   },
 
+  deleteDPR: async (id) => {
+    const response = await api.delete(`/dpr/${id}`);
+    return response.data;
+  },
+
   // ==========================================
-  // MEDIA UPLOADS (Two-Step Flow)
+  // MEDIA UPLOADS
   // ==========================================
+  
   uploadDPRPhoto: async (dprId, file, title = '', description = '') => {
     const formData = new FormData();
     formData.append('dprId', dprId);
@@ -41,9 +57,16 @@ export const dprService = {
     return response.data;
   },
 
+  // 🚨 CRITICAL FIX: Explicitly fetches the photos associated with a specific DPR
+  getDPRPhotos: async (dprId) => {
+    const response = await api.get(`/dpr-photos/dpr/${dprId}`);
+    return response.data;
+  },
+
   // ==========================================
   // WPR CORE
   // ==========================================
+  
   getWeeklyReport: async (projectId, weekDate) => {
     const response = await api.get('/wpr', { params: { projectId, weekDate } });
     return response.data;
@@ -54,9 +77,15 @@ export const dprService = {
     return response.data;
   },
 
+  deleteWPR: async (id) => {
+    const response = await api.delete(`/wpr/${id}`);
+    return response.data;
+  },
+
   // ==========================================
-  // DROPDOWN DEPENDENCIES & PRE-FILL DATA
+  // DEPENDENCIES
   // ==========================================
+
   getAttendanceSummary: async (projectId, date) => {
     const response = await api.get('/attendance/by-date', { params: { projectId, date } });
     return response.data;
