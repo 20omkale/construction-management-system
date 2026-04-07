@@ -35,7 +35,6 @@ export const getGlobalInventoryAPI = async (page = 1, limit = 20, search = '') =
 // ==========================================
 export const getProjectInventoryAPI = async (projectId, search = '') => {
     try {
-        // Perfectly matched to your backend: /api/inventory/project/:projectId
         let url = `${INVENTORY_API}/project/${projectId}`;
         if (search) url += `?search=${search}`;
         const response = await axios.get(url, getHeaders());
@@ -130,6 +129,34 @@ export const createPurchaseOrderAPI = async (data) => {
     }
 };
 
+// 🚨 UPDATED: Exact routes matching your backend PO Workflow
+export const submitPOForApprovalAPI = async (poId) => {
+    try {
+        const response = await axios.post(`${PO_API}/${poId}/submit`, {}, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to submit PO' };
+    }
+};
+
+export const approvePOAPI = async (poId) => {
+    try {
+        const response = await axios.post(`${PO_API}/${poId}/approve-reject`, { action: 'approve' }, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to approve PO' };
+    }
+};
+
+export const markPOAsOrderedAPI = async (poId) => {
+    try {
+        const response = await axios.post(`${PO_API}/${poId}/order`, { orderDate: new Date().toISOString() }, getHeaders());
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || { success: false, message: 'Failed to mark PO as ordered' };
+    }
+};
+
 export const createGRNAPI = async (data) => {
     try {
         const response = await axios.post(`${PO_API}/goods-receipts`, data, getHeaders());
@@ -152,7 +179,10 @@ export const inventoryService = {
     createEquipmentAPI,
     getAllPurchaseOrdersAPI,
     createPurchaseOrderAPI,
-    createGRNAPI
+    submitPOForApprovalAPI, // Workflow step 1
+    approvePOAPI,           // Workflow step 2
+    markPOAsOrderedAPI,     // Workflow step 3
+    createGRNAPI            // Workflow step 4
 };
 
 export default inventoryService;
