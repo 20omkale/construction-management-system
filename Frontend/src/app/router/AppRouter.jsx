@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../providers/AuthProvider';
 import { PermissionsProvider } from '../providers/PermissionsProvider';
 import ProtectedRoute from './ProtectedRoute';
+
+// Pages
 import Login from '../../modules/auth/pages/Login';
 import AdminLayout from '../../shared/layouts/AdminLayout';
 import ProjectDetailsLayout from '../../modules/projects/layouts/ProjectDetailsLayout';
@@ -18,7 +20,10 @@ import InventoryHistoryPage from '../../modules/inventory/pages/InventoryHistory
 import PurchaseOrderListPage from '../../modules/inventory/pages/PurchaseOrderListPage';
 import MaterialRequestListPage from '../../modules/inventory/pages/MaterialRequestListPage';
 import MaterialRequestDetailsPage from '../../modules/inventory/pages/MaterialRequestDetailsPage';
-import SupplierListPage from '../../modules/inventory/pages/SupplierListPage'; // Added Import
+import SupplierListPage from '../../modules/inventory/pages/SupplierListPage'; 
+
+// 🚨 NEW IMPORT: Profile & Roles Management
+import ManageUsersRoles from '../../modules/profile/pages/ManageUsersRoles';
 
 const SuperAdminDashboard = () => <div className="p-8"><h1 className="text-2xl font-bold">Super Admin Dashboard</h1></div>;
 const AdminDashboard = () => <div className="p-8"><h1 className="text-2xl font-bold text-slate-800">Welcome to Admin Dashboard</h1></div>;
@@ -44,6 +49,9 @@ const AppRouter = () => {
                             <Route element={<AdminLayout />}>
                                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                                 
+                                {/* 🚨 NEW ROUTE: Profile Section */}
+                                <Route path="/profile" element={<ManageUsersRoles />} />
+                                
                                 {/* Projects Routes */}
                                 <Route path="/projects" element={<ProjectListPage />} />
                                 <Route path="/projects/:projectId" element={<ProjectDetailsLayout />}>
@@ -67,8 +75,6 @@ const AppRouter = () => {
                                 <Route path="/inventory/po" element={<PurchaseOrderListPage />} />
                                 <Route path="/inventory/requests" element={<MaterialRequestListPage />} />
                                 <Route path="/inventory/requests/:id" element={<MaterialRequestDetailsPage />} />
-                                
-                                {/* Supplier Management Route */}
                                 <Route path="/inventory/suppliers" element={<SupplierListPage />} />
                             </Route>
                         </Route>
