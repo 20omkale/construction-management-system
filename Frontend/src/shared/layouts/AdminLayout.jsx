@@ -74,6 +74,9 @@ const AdminLayout = () => {
           <NavLink to="/admin/dashboard" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg text-sm font-bold ${isActive ? 'bg-blue-50 text-[#0f62fe]' : 'text-gray-600 hover:bg-gray-50'}`}>Dashboard</NavLink>
           <NavLink to="/projects" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg text-sm font-bold ${isActive || location.pathname.includes('/projects') ? 'bg-blue-50 text-[#0f62fe]' : 'text-gray-600 hover:bg-gray-50'}`}>Projects</NavLink>
           <NavLink to="/inventory" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg text-sm font-bold ${isActive && !location.pathname.includes('/projects') ? 'bg-blue-50 text-[#0f62fe]' : 'text-gray-600 hover:bg-gray-50'}`}>Inventory</NavLink>
+          
+          {/* 🚨 PROFILE NAVIGATION BUTTON ADDED HERE */}
+          <NavLink to="/profile" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg text-sm font-bold ${isActive ? 'bg-blue-50 text-[#0f62fe]' : 'text-gray-600 hover:bg-gray-50'}`}>Profile</NavLink>
         </nav>
 
         <div className="p-4 flex gap-2 mt-auto">
