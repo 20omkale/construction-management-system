@@ -7,18 +7,35 @@ const ProjectDetailsLayout = () => {
   const { projectId } = useParams();
   const location = useLocation();
   const [project, setProject] = useState(null);
+  const [hasBackendError, setHasBackendError] = useState(false);
 
   useEffect(() => {
     const fetchDetails = async () => {
       try {
         const res = await api.get(`/projects/${projectId}`);
         setProject(res.data?.data);
-      } catch (err) { console.error(err); }
+        setHasBackendError(false);
+      } catch (err) { 
+        console.error("Backend 500 Error intercepted! Falling back to UI safe-mode.", err);
+        setHasBackendError(true);
+        
+        // FRONTEND FAILSAFE: Provide mock data so the React component doesn't crash
+        setProject({
+            name: "Backend Connection Error",
+            location: "Project data unavailable due to 500 error",
+            projectId: projectId.substring(0, 8),
+            status: "UNKNOWN",
+            startDate: new Date(),
+            estimatedBudget: 0,
+            progress: 0
+        });
+      }
     };
     fetchDetails();
   }, [projectId]);
 
-  if (!project) return null;
+  // Only show a loading screen if we haven't received a response (success or fail) yet
+  if (!project) return <div className="p-10 text-slate-400 font-bold w-full h-full flex justify-center items-center">Loading Project...</div>;
 
   const tabs = [
     { name: 'Overview', path: `overview`, icon: Eye },
@@ -33,11 +50,20 @@ const ProjectDetailsLayout = () => {
 
   return (
     <div className="p-8 space-y-6 bg-[#F8FAFC]">
+      
+      {hasBackendError && (
+        <div className="bg-red-50 text-red-600 px-6 py-4 rounded-2xl border border-red-100 text-sm font-bold shadow-sm">
+            🚨 Backend Error (500): The project endpoint crashed. Displaying fallback data so you can continue testing tabs.
+        </div>
+      )}
+      
       <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-2xl font-black text-slate-800 mb-1">{project.name}</h1>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-tight">{project.location} | ID-{project.projectId || 'PROJ-001'} · {project.client?.companyName}</p>
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-tight">
+              {project.location} | ID-{project.projectId || 'PROJ-001'} {project.client?.companyName ? `· ${project.client.companyName}` : ''}
+            </p>
           </div>
           <div className="flex gap-3">
             <button className="p-2 px-5 border border-slate-200 rounded-xl text-slate-600 text-xs font-black uppercase flex items-center gap-2 hover:bg-slate-50">
@@ -50,10 +76,12 @@ const ProjectDetailsLayout = () => {
         </div>
 
         <div className="flex items-center gap-4 mb-10">
-          <span className="bg-orange-500 text-white px-3 py-1 rounded-lg font-black text-[10px] uppercase tracking-widest">{project.status}</span>
+          <span className="bg-orange-500 text-white px-3 py-1 rounded-lg font-black text-[10px] uppercase tracking-widest">{project.status || 'ONGOING'}</span>
           <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Priority: <span className="text-red-500">High</span></span>
           <span className="text-slate-200">|</span>
-          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Start: {new Date(project.startDate).toLocaleDateString('en-GB')} → End: 13 Oct 2026</span>
+          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+            Start: {project.startDate ? new Date(project.startDate).toLocaleDateString('en-GB') : 'N/A'} → End: 13 Oct 2026
+          </span>
         </div>
 
         <div className="grid grid-cols-3 gap-8 mb-10">
@@ -71,7 +99,9 @@ const ProjectDetailsLayout = () => {
             </div>
         </div>
 
-        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-3"><div className="bg-[#0066CC] h-full rounded-full transition-all duration-1000" style={{ width: '75%' }}></div></div>
+        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-3">
+          <div className="bg-[#0066CC] h-full rounded-full transition-all duration-1000" style={{ width: '75%' }}></div>
+        </div>
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">75% complete</p>
       </div>
 
