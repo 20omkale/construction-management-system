@@ -2,9 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus, Filter, Calendar, Trash2, ChevronDown, Loader2, X, RefreshCw } from 'lucide-react';
 import { dprService } from '../services/dpr.service';
+// 🚨 NEW: Import the correct WPR API
+import { getProjectWPRsAPI } from '../services/wpr.service'; 
+
 import CreateDPRModal from '../components/CreateDPRModal';
 import CreateWPRModal from '../components/CreateWPRModal';
 import DPRDetailsModal from '../components/DPRDetailsModal';
+// 🚨 NEW: Import the WPR Details Modal so it can actually render!
+import WPRDetailsModal from '../components/WPRDetailsModal';
 
 const DPRListPage = () => {
   const { projectId } = useParams();
@@ -52,13 +57,13 @@ const DPRListPage = () => {
         let fetchedReports = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.data?.data) ? response.data.data : []);
         setReports(fetchedReports);
       } else {
-        const [month, year] = selectedMonthYear.split('/');
-        const safeQueryDate = year && month ? `${year}-${month}-01` : new Date().toISOString().split('T')[0];
+        // 🚨 FIXED: Now uses the correct getProjectWPRsAPI to fetch the SAVED list from the database
         try {
-            const response = await dprService.getWeeklyReport(projectId, safeQueryDate);
-            const fetchedWPRs = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.data?.data) ? response.data.data : []);
+            const response = await getProjectWPRsAPI(projectId);
+            const fetchedWPRs = Array.isArray(response?.data) ? response.data : [];
             setReports(fetchedWPRs);
         } catch (err) {
+            console.error("Failed to fetch WPR list", err);
             setReports([]); 
         }
       }
@@ -107,6 +112,11 @@ const DPRListPage = () => {
             setLoadingDetailsId(null);
             setIsDetailsModalOpen(true);
         }
+    } else if (reportType === 'WPR') {
+        // 🚨 FIXED: WPRs now actually open when clicked!
+        // The saved WPR already contains all aggregated data, so no secondary fetch needed
+        setSelectedReport(report);
+        setIsDetailsModalOpen(true);
     }
   };
 
@@ -194,8 +204,8 @@ const DPRListPage = () => {
                   <div className="absolute top-full mt-2 right-0 w-48 bg-white border border-slate-100 rounded-[1rem] shadow-xl z-50 p-2">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2 mt-2">Filter Status</p>
                       <button onClick={() => { setStatusFilter(''); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === '' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>All Reports</button>
-                      <button onClick={() => { setStatusFilter('COMPLETED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === 'COMPLETED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Approved</button>
-                      <button onClick={() => { setStatusFilter('TODO'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg ${statusFilter === 'TODO' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Pending</button>
+                      <button onClick={() => { setStatusFilter('APPROVED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === 'APPROVED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Approved</button>
+                      <button onClick={() => { setStatusFilter('SUBMITTED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg ${statusFilter === 'SUBMITTED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Submitted</button>
                   </div>
               )}
           </div>
@@ -230,15 +240,23 @@ const DPRListPage = () => {
             <div 
               key={report.id} 
               onClick={() => handleOpenDetails(report)}
-              className={`flex items-center justify-between py-5 border-b border-slate-100 transition-all group ${!isDeleteMode && reportType === 'DPR' ? 'cursor-pointer hover:bg-slate-50/50' : ''}`}
+              className={`flex items-center justify-between py-5 border-b border-slate-100 transition-all group ${!isDeleteMode ? 'cursor-pointer hover:bg-slate-50/50' : ''}`}
             >
               <div className="space-y-1">
+                {/* 🚨 FIXED: Formats WPR dates nicely like "20 Mar 2026 to 27 Mar 2026" */}
                 <p className="text-[13px] font-black text-slate-800">
-                  {reportType === 'WPR' ? report.title : formatDate(report.date)}
+                  {reportType === 'WPR' 
+                    ? `${formatDate(report.weekStartDate)} to ${formatDate(report.weekEndDate)}` 
+                    : formatDate(report.date)}
                 </p>
                 {reportType === 'DPR' && (
                   <p className="text-[11px] font-bold text-slate-400">
                     Prepared by: <span className="text-[#0066CC]">{report.preparedBy?.name || 'Site Engineer'}</span>
+                  </p>
+                )}
+                {reportType === 'WPR' && report.reportNo && (
+                  <p className="text-[11px] font-bold text-slate-400">
+                    Report No: <span className="text-[#0066CC]">{report.reportNo}</span>
                   </p>
                 )}
               </div>
@@ -251,11 +269,11 @@ const DPRListPage = () => {
                         <Trash2 className="w-4 h-4" />
                     </button>
                 ) : (
-                    reportType === 'DPR' && report.status && (
+                    report.status && (
                       <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${
-                        report.status === 'COMPLETED' || report.status === 'Approved' ? 'bg-[#00A86B] text-white' : 'bg-[#0066CC] text-white'
+                        report.status.toUpperCase() === 'APPROVED' ? 'bg-[#00A86B] text-white' : 'bg-[#0066CC] text-white'
                       }`}>
-                        {report.status === 'COMPLETED' ? 'Approved' : 'Submitted'}
+                        {report.status.toUpperCase() === 'APPROVED' ? 'Approved' : 'Submitted'}
                       </span>
                     )
                 )}
@@ -266,23 +284,33 @@ const DPRListPage = () => {
       </div>
 
       {reportType === 'DPR' ? (
-        <CreateDPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} refresh={fetchReports} projectId={projectId} />
+        <CreateDPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={fetchReports} projectId={projectId} />
       ) : (
-        <CreateWPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} refresh={fetchReports} projectId={projectId} />
+        <CreateWPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={fetchReports} projectId={projectId} />
       )}
 
-      <DPRDetailsModal 
-        isOpen={isDetailsModalOpen} 
-        onClose={() => setIsDetailsModalOpen(false)} 
-        dpr={selectedReport} 
-        onDelete={async (id) => {
-            if (window.confirm("Delete this report permanently?")) {
-                await dprService.deleteDPR(id);
-                setIsDetailsModalOpen(false);
-                fetchReports();
-            }
-        }}
-      />
+      {/* 🚨 FIXED: Conditionally renders the correct Details Modal based on the selected tab */}
+      {reportType === 'DPR' ? (
+          <DPRDetailsModal 
+            isOpen={isDetailsModalOpen} 
+            onClose={() => setIsDetailsModalOpen(false)} 
+            dpr={selectedReport} 
+            onStatusChange={fetchReports} 
+            onDelete={async (id) => {
+                if (window.confirm("Delete this report permanently?")) {
+                    await dprService.deleteDPR(id);
+                    setIsDetailsModalOpen(false);
+                    fetchReports();
+                }
+            }}
+          />
+      ) : (
+          <WPRDetailsModal 
+            isOpen={isDetailsModalOpen} 
+            onClose={() => setIsDetailsModalOpen(false)} 
+            wpr={selectedReport} 
+          />
+      )}
     </div>
   );
 };

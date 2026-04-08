@@ -13,10 +13,8 @@ const getHeaders = () => {
     };
 };
 
-// 1. Fetches real-time aggregated data from DPRs (Matches your backend: getWeeklyProgressReport)
 export const getWPRPreviewAPI = async (projectId, weekDate) => {
     try {
-        // Assuming your GET route takes query params
         const response = await axios.get(`${WPR_API}`, { 
             params: { projectId, weekDate },
             ...getHeaders() 
@@ -27,7 +25,6 @@ export const getWPRPreviewAPI = async (projectId, weekDate) => {
     }
 };
 
-// 2. Saves the finalized WPR to the database (Matches your backend: createWPR)
 export const createWPRAPI = async (payload) => {
     try {
         const response = await axios.post(`${WPR_API}`, payload, getHeaders());
@@ -37,10 +34,10 @@ export const createWPRAPI = async (payload) => {
     }
 };
 
-// 3. Gets saved WPRs for the List Page
 export const getProjectWPRsAPI = async (projectId) => {
     try {
-        const response = await axios.get(`${WPR_API}/saved`, { 
+        // 🚨 FIXED: Changed from /saved to /list to match your wpr.routes.js
+        const response = await axios.get(`${WPR_API}/list`, { 
             params: { projectId },
             ...getHeaders() 
         });
@@ -50,7 +47,6 @@ export const getProjectWPRsAPI = async (projectId) => {
     }
 };
 
-// 4. Updates WPR status (Approve/Submit)
 export const updateWPRStatusAPI = async (id, status, approvalNotes = '') => {
     try {
         const response = await axios.patch(`${WPR_API}/${id}/status`, { status, approvalNotes }, getHeaders());
