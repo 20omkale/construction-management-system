@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Cloud, CloudRain, Sun, Trash2, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
-// 🚨 CORRECTED IMPORTS
 import { getWPRPreviewAPI, createWPRAPI } from '../services/wpr.service';
 
 const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
@@ -56,7 +55,10 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
             };
 
             await createWPRAPI(payload);
-            if (onSuccess) onSuccess();
+            
+            // 🚨 THIS is what refreshes the list in DPRListPage
+            if (onSuccess) onSuccess(); 
+            
             onClose();
         } catch (error) {
             alert(error.message || "Failed to save the WPR. Please try again.");
