@@ -22,11 +22,17 @@ import MaterialRequestListPage from '../../modules/inventory/pages/MaterialReque
 import MaterialRequestDetailsPage from '../../modules/inventory/pages/MaterialRequestDetailsPage';
 import SupplierListPage from '../../modules/inventory/pages/SupplierListPage'; 
 
-// 🚨 NEW IMPORT: Profile & Roles Management
+// Profile & Roles Management
 import ManageUsersRoles from '../../modules/profile/pages/ManageUsersRoles';
 
+// Dashboard
+import DashboardPage from '../../modules/dashboard/pages/DashboardPage';
+
+// 🚨 NEW IMPORT: Approvals Dashboard
+import ApprovalsPage from '../../modules/approvals/pages/ApprovalsPage';
+
+
 const SuperAdminDashboard = () => <div className="p-8"><h1 className="text-2xl font-bold">Super Admin Dashboard</h1></div>;
-const AdminDashboard = () => <div className="p-8"><h1 className="text-2xl font-bold text-slate-800">Welcome to Admin Dashboard</h1></div>;
 const PlaceholderTab = ({ title }) => <div className="p-12 text-center text-slate-500 bg-white min-h-[400px] flex items-center justify-center rounded-b-xl border border-slate-200"><p className="text-lg font-medium">{title} submodule is under construction.</p></div>;
 
 const AppRouter = () => {
@@ -47,10 +53,15 @@ const AppRouter = () => {
                         {/* General Authenticated Section */}
                         <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE']} />}>
                             <Route element={<AdminLayout />}>
-                                <Route path="/admin/dashboard" element={<AdminDashboard />} />
                                 
-                                {/* 🚨 NEW ROUTE: Profile Section */}
+                                {/* Standard Dashboard */}
+                                <Route path="/admin/dashboard" element={<DashboardPage />} />
+                                
+                                {/* Profile Section */}
                                 <Route path="/profile" element={<ManageUsersRoles />} />
+                                
+                                {/* 🚨 NEW ROUTE: Approvals Dashboard */}
+                                <Route path="/approvals" element={<ApprovalsPage />} />
                                 
                                 {/* Projects Routes */}
                                 <Route path="/projects" element={<ProjectListPage />} />
@@ -76,6 +87,7 @@ const AppRouter = () => {
                                 <Route path="/inventory/requests" element={<MaterialRequestListPage />} />
                                 <Route path="/inventory/requests/:id" element={<MaterialRequestDetailsPage />} />
                                 <Route path="/inventory/suppliers" element={<SupplierListPage />} />
+                                
                             </Route>
                         </Route>
 
