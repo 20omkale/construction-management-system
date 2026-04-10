@@ -1,19 +1,20 @@
+// File 1: Frontend/src/modules/projects/pages/DPRListPage.jsx
+// This is the COMBINED page with the DPR/WPR toggle, restoring your exact UI flow.
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus, Filter, Calendar, Trash2, ChevronDown, Loader2, X, RefreshCw } from 'lucide-react';
 import { dprService } from '../services/dpr.service';
-// 🚨 NEW: Import the correct WPR API
 import { getProjectWPRsAPI } from '../services/wpr.service'; 
 
 import CreateDPRModal from '../components/CreateDPRModal';
 import CreateWPRModal from '../components/CreateWPRModal';
 import DPRDetailsModal from '../components/DPRDetailsModal';
-// 🚨 NEW: Import the WPR Details Modal so it can actually render!
 import WPRDetailsModal from '../components/WPRDetailsModal';
 
 const DPRListPage = () => {
   const { projectId } = useParams();
-  const [reportType, setReportType] = useState('DPR');
+  const [reportType, setReportType] = useState('DPR'); // Controls the toggle
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingDetailsId, setLoadingDetailsId] = useState(null);
@@ -22,8 +23,11 @@ const DPRListPage = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
 
+  // DPR Filters
   const [selectedDate, setSelectedDate] = useState(''); 
-  const [selectedWeek, setSelectedWeek] = useState('Week 1');
+  
+  // WPR Filters
+  const [selectedWeek, setSelectedWeek] = useState(''); 
   const [selectedMonthYear, setSelectedMonthYear] = useState(`${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`);
   
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -32,7 +36,6 @@ const DPRListPage = () => {
 
   const filterRef = useRef(null);
 
-  // Click Outside to close filter dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {
@@ -57,15 +60,43 @@ const DPRListPage = () => {
         let fetchedReports = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.data?.data) ? response.data.data : []);
         setReports(fetchedReports);
       } else {
-        // 🚨 FIXED: Now uses the correct getProjectWPRsAPI to fetch the SAVED list from the database
-        try {
-            const response = await getProjectWPRsAPI(projectId);
-            const fetchedWPRs = Array.isArray(response?.data) ? response.data : [];
-            setReports(fetchedWPRs);
-        } catch (err) {
-            console.error("Failed to fetch WPR list", err);
-            setReports([]); 
+        const response = await getProjectWPRsAPI(projectId);
+        
+        let fetchedWPRs = [];
+        if (Array.isArray(response)) fetchedWPRs = response;
+        else if (Array.isArray(response?.data)) fetchedWPRs = response.data;
+        else if (Array.isArray(response?.data?.data)) fetchedWPRs = response.data.data;
+        else if (Array.isArray(response?.data?.wprs)) fetchedWPRs = response.data.wprs;
+        
+        if (selectedMonthYear && fetchedWPRs.length > 0) {
+            const [monthStr, yearStr] = selectedMonthYear.split('/');
+            const targetMonth = parseInt(monthStr, 10) - 1;
+            const targetYear = parseInt(yearStr, 10);
+
+            fetchedWPRs = fetchedWPRs.filter(wpr => {
+                if (!wpr.weekStartDate && !wpr.createdAt) return true;
+                const d = new Date(wpr.weekStartDate || wpr.createdAt);
+                return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+            });
         }
+
+        if (selectedWeek && selectedWeek !== '' && fetchedWPRs.length > 0) {
+            const weekNum = parseInt(selectedWeek.replace('Week ', ''), 10);
+            fetchedWPRs = fetchedWPRs.filter(wpr => {
+                if (!wpr.weekStartDate && !wpr.createdAt) return true;
+                const d = new Date(wpr.weekStartDate || wpr.createdAt);
+                const dateOfMonth = d.getDate();
+                const calcWeek = Math.ceil(dateOfMonth / 7);
+                const finalWeek = calcWeek > 4 ? 4 : calcWeek;
+                return finalWeek === weekNum;
+            });
+        }
+        
+        if (statusFilter && fetchedWPRs.length > 0) {
+             fetchedWPRs = fetchedWPRs.filter(wpr => (wpr.status || '').toUpperCase() === statusFilter);
+        }
+
+        setReports(fetchedWPRs);
       }
     } catch (error) {
       console.error("Error fetching reports:", error);
@@ -77,7 +108,7 @@ const DPRListPage = () => {
 
   useEffect(() => {
     fetchReports();
-  }, [projectId, reportType, selectedDate, selectedMonthYear, statusFilter]);
+  }, [projectId, reportType, selectedDate, selectedMonthYear, selectedWeek, statusFilter]);
 
   const handleOpenDetails = async (report) => {
     if (isDeleteMode) return; 
@@ -85,20 +116,15 @@ const DPRListPage = () => {
     if (reportType === 'DPR') {
         setLoadingDetailsId(report.id); 
         try {
-            // 1. Fetch main DPR details
             const fullDetails = await dprService.getDPRById(report.id);
             let actualData = fullDetails?.data?.data || fullDetails?.data || report;
 
-            // 2. Fetch specific Photos & Docs from the backend photo route
             try {
                 const photoResponse = await dprService.getDPRPhotos(report.id);
-                // Based on your controller: res.json({ data: { photos: [...] } })
                 const fetchedPhotos = photoResponse?.data?.photos || photoResponse?.data?.data?.photos || [];
-                
-                // Merge photos into the actualData object before passing to the modal
                 actualData = {
                     ...actualData,
-                    photos: fetchedPhotos
+                    photos: fetchedPhotos.length > 0 ? fetchedPhotos : actualData.photos
                 };
             } catch (photoErr) {
                 console.error("Failed to fetch specific DPR photos:", photoErr);
@@ -112,9 +138,7 @@ const DPRListPage = () => {
             setLoadingDetailsId(null);
             setIsDetailsModalOpen(true);
         }
-    } else if (reportType === 'WPR') {
-        // 🚨 FIXED: WPRs now actually open when clicked!
-        // The saved WPR already contains all aggregated data, so no secondary fetch needed
+    } else {
         setSelectedReport(report);
         setIsDetailsModalOpen(true);
     }
@@ -122,7 +146,7 @@ const DPRListPage = () => {
 
   const handleDeleteRow = async (e, id) => {
     e.stopPropagation(); 
-    if (window.confirm("Are you sure you want to permanently delete this report?")) {
+    if (window.confirm(`Are you sure you want to permanently delete this ${reportType}?`)) {
         try {
             if (reportType === 'DPR') await dprService.deleteDPR(id);
             else await dprService.deleteWPR(id);
@@ -144,16 +168,16 @@ const DPRListPage = () => {
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
         
-        {/* Figma Exact Pill Toggle */}
+        {/* THE TOGGLE */}
         <div className="flex bg-[#F1F5F9] p-1 rounded-full w-fit">
           <button 
-            onClick={() => setReportType('DPR')}
+            onClick={() => { setReportType('DPR'); setIsDeleteMode(false); }}
             className={`px-8 py-2 rounded-full text-xs font-black transition-all uppercase tracking-widest ${reportType === 'DPR' ? 'bg-[#0066CC] text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
           >
             DPR
           </button>
           <button 
-            onClick={() => setReportType('WPR')}
+            onClick={() => { setReportType('WPR'); setIsDeleteMode(false); }}
             className={`px-8 py-2 rounded-full text-xs font-black transition-all uppercase tracking-widest ${reportType === 'WPR' ? 'bg-[#0066CC] text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
           >
             WPR
@@ -161,7 +185,6 @@ const DPRListPage = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          {/* Sync Latest Data Button */}
           <button onClick={fetchReports} className="p-2.5 border border-slate-200 rounded-xl text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Sync Real-Time Data">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -180,7 +203,11 @@ const DPRListPage = () => {
             <div className="flex gap-2">
               <div className="relative">
                 <select value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)} className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none cursor-pointer">
-                  <option>Week 1</option><option>Week 2</option><option>Week 3</option><option>Week 4</option>
+                  <option value="">All Weeks</option>
+                  <option value="Week 1">Week 1</option>
+                  <option value="Week 2">Week 2</option>
+                  <option value="Week 3">Week 3</option>
+                  <option value="Week 4">Week 4</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
@@ -191,7 +218,6 @@ const DPRListPage = () => {
             </div>
           )}
 
-          {/* Filter Dropdown with Click Outside */}
           <div className="relative" ref={filterRef}>
               <button 
                 onClick={() => setIsFilterOpen(!isFilterOpen)} 
@@ -214,7 +240,6 @@ const DPRListPage = () => {
             <Plus className="w-4 h-4" /> Create {reportType}
           </button>
           
-          {/* Delete Mode Toggle */}
           <button 
             onClick={() => setIsDeleteMode(!isDeleteMode)}
             className={`p-2.5 border rounded-xl transition-colors ${isDeleteMode ? 'border-red-500 bg-red-500 text-white shadow-md' : 'border-red-100 text-red-500 bg-red-50 hover:bg-red-100'}`}
@@ -225,7 +250,7 @@ const DPRListPage = () => {
       </div>
 
       <h3 className="text-sm font-black text-slate-800 mb-6 flex items-center justify-between">
-        <span>{reportType === 'DPR' ? 'Daily Progress Report List' : 'Weekly Progress Report List'}</span>
+        <span>{reportType === 'DPR' ? 'Daily Progress Reports' : 'Weekly Progress Report List'}</span>
       </h3>
 
       <div className="space-y-1">
@@ -243,7 +268,6 @@ const DPRListPage = () => {
               className={`flex items-center justify-between py-5 border-b border-slate-100 transition-all group ${!isDeleteMode ? 'cursor-pointer hover:bg-slate-50/50' : ''}`}
             >
               <div className="space-y-1">
-                {/* 🚨 FIXED: Formats WPR dates nicely like "20 Mar 2026 to 27 Mar 2026" */}
                 <p className="text-[13px] font-black text-slate-800">
                   {reportType === 'WPR' 
                     ? `${formatDate(report.weekStartDate)} to ${formatDate(report.weekEndDate)}` 
@@ -289,13 +313,11 @@ const DPRListPage = () => {
         <CreateWPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={fetchReports} projectId={projectId} />
       )}
 
-      {/* 🚨 FIXED: Conditionally renders the correct Details Modal based on the selected tab */}
       {reportType === 'DPR' ? (
           <DPRDetailsModal 
             isOpen={isDetailsModalOpen} 
             onClose={() => setIsDetailsModalOpen(false)} 
             dpr={selectedReport} 
-            onStatusChange={fetchReports} 
             onDelete={async (id) => {
                 if (window.confirm("Delete this report permanently?")) {
                     await dprService.deleteDPR(id);

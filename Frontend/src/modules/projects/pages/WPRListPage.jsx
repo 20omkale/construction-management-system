@@ -1,176 +1,249 @@
-// src/modules/projects/pages/WPRListPage.jsx
-import React, { useState, useEffect } from 'react';
-import { Plus, FileText, AlertCircle, Send, Clock, Loader2, Eye } from 'lucide-react';
-import { getProjectWPRsAPI, updateWPRStatusAPI } from '../services/wpr.service'; // Removed generateWPRAPI
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { Plus, Filter, Calendar, Trash2, ChevronDown, Loader2, X, RefreshCw } from 'lucide-react';
+import { getProjectWPRsAPI } from '../services/wpr.service'; 
+import { dprService } from '../services/dpr.service'; 
+
 import CreateWPRModal from '../components/CreateWPRModal';
 import WPRDetailsModal from '../components/WPRDetailsModal';
 
-const WPRListPage = ({ projectId }) => {
-    const [user, setUser] = useState(null);
-    useEffect(() => {
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) setUser(JSON.parse(savedUser));
-    }, []);
-
-    const [wprs, setWprs] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
+// 🚨 PERMANENT FIX: Robust Date Parser that completely fixes the "List Not Updating" bug
+const parseSafeDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
     
-    // Modal States
-    const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-    const [selectedWPR, setSelectedWPR] = useState(null);
-
-    const fetchWPRs = async () => {
-        if (!projectId) return;
-        setIsLoading(true);
-        setError('');
-        try {
-            const response = await getProjectWPRsAPI(projectId);
-            if (response.success) setWprs(response.data);
-            else setError(response.message);
-        } catch (err) {
-            setError(err.message || "Failed to load Weekly Reports.");
-        } finally {
-            setIsLoading(false);
+    if (typeof dateStr === 'string') {
+        const parts = dateStr.split(/[-/]/);
+        if (parts.length === 3) {
+            if (parts[0].length === 4) return new Date(parts[0], parts[1]-1, parts[2]);
+            return new Date(parts[2], parts[1]-1, parts[0]);
         }
+    }
+    return new Date();
+};
+
+const WPRListPage = () => {
+  const { projectId } = useParams();
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+
+  const [selectedWeek, setSelectedWeek] = useState(''); 
+  const [selectedMonthYear, setSelectedMonthYear] = useState(`${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`);
+  
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState(''); 
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+
+  const filterRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
+        setIsFilterOpen(false);
+      }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-    useEffect(() => { fetchWPRs(); }, [projectId]);
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+        const response = await getProjectWPRsAPI(projectId);
+        
+        let fetchedWPRs = [];
+        if (Array.isArray(response)) fetchedWPRs = response;
+        else if (Array.isArray(response?.data)) fetchedWPRs = response.data;
+        else if (Array.isArray(response?.data?.data)) fetchedWPRs = response.data.data;
+        else if (Array.isArray(response?.data?.wprs)) fetchedWPRs = response.data.wprs;
+        else if (Array.isArray(response?.data?.data?.wprs)) fetchedWPRs = response.data.data.wprs;
+        else if (Array.isArray(response?.data?.data?.reports)) fetchedWPRs = response.data.data.reports;
 
-    const handleViewDetails = (wpr) => {
-        setSelectedWPR(wpr);
-        setIsDetailsModalOpen(true);
-    };
+        fetchedWPRs.sort((a, b) => parseSafeDate(b.createdAt || b.weekStartDate).getTime() - parseSafeDate(a.createdAt || a.weekStartDate).getTime());
+        
+        if (selectedMonthYear && fetchedWPRs.length > 0) {
+            const [monthStr, yearStr] = selectedMonthYear.split('/');
+            const targetMonth = parseInt(monthStr, 10) - 1;
+            const targetYear = parseInt(yearStr, 10);
 
-    const handleSubmitWPR = async (id) => {
-        if (!window.confirm("Submit this Weekly Report for Admin Approval?")) return;
+            fetchedWPRs = fetchedWPRs.filter(wpr => {
+                if (!wpr.weekStartDate && !wpr.createdAt) return true;
+                
+                const startD = parseSafeDate(wpr.weekStartDate || wpr.createdAt);
+                const endD = parseSafeDate(wpr.weekEndDate || wpr.createdAt);
+                
+                const startMatch = startD.getMonth() === targetMonth && startD.getFullYear() === targetYear;
+                const endMatch = endD.getMonth() === targetMonth && endD.getFullYear() === targetYear;
+                
+                return startMatch || endMatch;
+            });
+        }
+
+        if (selectedWeek && selectedWeek !== '' && fetchedWPRs.length > 0) {
+            const weekNum = parseInt(selectedWeek.replace('Week ', ''), 10);
+            fetchedWPRs = fetchedWPRs.filter(wpr => {
+                if (!wpr.weekStartDate && !wpr.createdAt) return true;
+                const d = parseSafeDate(wpr.weekStartDate || wpr.createdAt);
+                const dateOfMonth = d.getDate();
+                const calcWeek = Math.ceil(dateOfMonth / 7);
+                const finalWeek = calcWeek > 4 ? 4 : calcWeek;
+                return finalWeek === weekNum;
+            });
+        }
+        
+        if (statusFilter && fetchedWPRs.length > 0) {
+             fetchedWPRs = fetchedWPRs.filter(wpr => (wpr.status || '').toUpperCase() === statusFilter);
+        }
+
+        setReports(fetchedWPRs);
+    } catch (err) {
+        console.error("Failed to fetch WPR list", err);
+        setReports([]); 
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, [projectId, selectedMonthYear, selectedWeek, statusFilter]);
+
+  const handleOpenDetails = (report) => {
+    if (isDeleteMode) return; 
+    setSelectedReport(report);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleDeleteRow = async (e, id) => {
+    e.stopPropagation(); 
+    if (window.confirm("Are you sure you want to permanently delete this WPR?")) {
         try {
-            await updateWPRStatusAPI(id, 'PENDING_APPROVAL');
-            fetchWPRs();
-        } catch (err) { alert(`Error: ${err.message}`); }
-    };
+            await dprService.deleteWPR(id);
+            fetchReports();
+        } catch (err) {
+            alert(err.response?.data?.message || "Failed to delete report.");
+        }
+    }
+  };
 
-    const handleApproveWPR = async (id) => {
-        if (!window.confirm("Approve this Weekly Report? This will lock the data.")) return;
-        try {
-            await updateWPRStatusAPI(id, 'APPROVED', 'Approved by Admin');
-            fetchWPRs();
-        } catch (err) { alert(`Error: ${err.message}`); }
-    };
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Unknown Date';
+    return parseSafeDate(dateString).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
-    const isAdmin = user?.userType === 'COMPANY_ADMIN';
+  return (
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 animate-in fade-in duration-500 min-h-[500px]">
+      
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+        <h3 className="text-xl font-black text-slate-800">Weekly Progress Reports</h3>
 
-    return (
-        <div className="w-full space-y-6 font-sans animate-in fade-in duration-500">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h3 className="font-bold text-gray-900 text-[18px]">Weekly Progress Reports</h3>
-                    <p className="text-[12px] text-gray-500 mt-1">Aggregated summaries from daily operations.</p>
-                </div>
-                <button onClick={() => setIsGenerateModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-[#0066CC] text-white text-[13px] font-medium rounded-md hover:bg-[#0052a3] transition-all shadow-sm">
-                    <Plus size={16} /> Generate WPR
-                </button>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button onClick={fetchReports} className="p-2.5 border border-slate-200 rounded-xl text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Sync Real-Time Data">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <div className="flex gap-2">
+            <div className="relative">
+              <select value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)} className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none cursor-pointer">
+                <option value="">All Weeks</option>
+                <option value="Week 1">Week 1 (1st - 7th)</option>
+                <option value="Week 2">Week 2 (8th - 14th)</option>
+                <option value="Week 3">Week 3 (15th - 21st)</option>
+                <option value="Week 4">Week 4 (22nd+)</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
+            <div className="relative">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input type="text" placeholder="MM/YYYY" value={selectedMonthYear} onChange={(e) => setSelectedMonthYear(e.target.value)} className="pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none w-32" />
+            </div>
+          </div>
 
-            {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 flex items-start gap-3">
-                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                    <p className="text-[13px] font-medium">{error}</p>
-                </div>
-            )}
+          <div className="relative" ref={filterRef}>
+              <button 
+                onClick={() => setIsFilterOpen(!isFilterOpen)} 
+                className={`p-2.5 border rounded-xl transition-colors ${statusFilter || isFilterOpen ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+              >
+                <Filter className="w-4 h-4" />
+              </button>
 
-            {isLoading ? (
-                <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-[#0066CC]" /></div>
-            ) : wprs.length === 0 ? (
-                <div className="text-center py-20 bg-gray-50/50 border border-dashed border-gray-200 rounded-2xl">
-                    <FileText size={32} className="mx-auto text-gray-300 mb-3" />
-                    <p className="text-sm font-medium text-gray-500">No Weekly Reports generated for this project yet.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {wprs.map((wpr) => {
-                        let statusColor = "text-gray-500";
-                        let statusLabel = wpr.status.replace('_', ' ');
-                        if (wpr.status === 'PENDING_APPROVAL') { statusColor = "text-[#E02020]"; statusLabel = "Pending Review"; }
-                        if (wpr.status === 'APPROVED') { statusColor = "text-[#00A859]"; }
-
-                        return (
-                            <div key={wpr.id} className="p-5 border border-gray-200 rounded-[12px] bg-white hover:border-[#0066CC] hover:shadow-md transition-all flex flex-col justify-between h-[160px]">
-                                <div>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <p className="font-bold text-gray-900 text-[14px]">
-                                            {new Date(wpr.weekStartDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - {new Date(wpr.weekEndDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                                        </p>
-                                        <span className={`text-[11px] font-bold ${statusColor}`}>
-                                            {statusLabel}
-                                        </span>
-                                    </div>
-                                    <div className="flex gap-4 text-[12px] text-gray-600 mt-3 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-gray-400 uppercase tracking-widest">Total Labor</span>
-                                            <strong className="text-gray-900">{wpr.totalLaborCount || 0}</strong>
-                                        </div>
-                                        <div className="w-px bg-gray-200"></div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-gray-400 uppercase tracking-widest">Eq. Hours</span>
-                                            <strong className="text-gray-900">{wpr.totalEquipmentHours || 0} hrs</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex justify-between items-end mt-4">
-                                    <p className="text-[11px] text-gray-400 truncate max-w-[80px]">
-                                        By: {wpr.createdBy?.name || 'System'}
-                                    </p>
-                                    
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => handleViewDetails(wpr)} 
-                                            className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-[4px] hover:bg-gray-200 transition-all flex items-center gap-1"
-                                        >
-                                            <Eye size={12} /> View
-                                        </button>
-                                        {wpr.status === 'DRAFT' && (
-                                            <button onClick={() => handleSubmitWPR(wpr.id)} className="px-3 py-1.5 bg-[#0066CC] text-white text-[11px] font-medium rounded-[4px] hover:bg-blue-800 transition-all flex items-center gap-1">
-                                                <Send size={12} /> Submit
-                                            </button>
-                                        )}
-                                        {wpr.status === 'PENDING_APPROVAL' && isAdmin && (
-                                            <button onClick={() => handleApproveWPR(wpr.id)} className="px-3 py-1.5 bg-[#00A859] text-white text-[11px] font-medium rounded-[4px] hover:bg-green-700 transition-all flex items-center gap-1">
-                                                <Clock size={12} /> Approve
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {isGenerateModalOpen && (
-                <CreateWPRModal 
-                    isOpen={isGenerateModalOpen} 
-                    onClose={() => setIsGenerateModalOpen(false)} 
-                    projectId={projectId}
-                    // 🚨 THIS IS THE CRUCIAL CHANGE: Pass onSuccess prop
-                    onSuccess={() => {
-                        setIsGenerateModalOpen(false); // Close the modal
-                        fetchWPRs(); // Refresh the list
-                    }} 
-                />
-            )}
-
-            {isDetailsModalOpen && (
-                <WPRDetailsModal 
-                    isOpen={isDetailsModalOpen} 
-                    onClose={() => setIsDetailsModalOpen(false)} 
-                    wpr={selectedWPR} 
-                />
-            )}
+              {isFilterOpen && (
+                  <div className="absolute top-full mt-2 right-0 w-48 bg-white border border-slate-100 rounded-[1rem] shadow-xl z-50 p-2">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2 mt-2">Filter Status</p>
+                      <button onClick={() => { setStatusFilter(''); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === '' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>All Reports</button>
+                      <button onClick={() => { setStatusFilter('APPROVED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === 'APPROVED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Approved</button>
+                      <button onClick={() => { setStatusFilter('SUBMITTED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg ${statusFilter === 'SUBMITTED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Submitted</button>
+                  </div>
+              )}
+          </div>
+          
+          <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 bg-[#0066CC] text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-800 shadow-md transition-all active:scale-95">
+            <Plus className="w-4 h-4" /> Create WPR
+          </button>
+          
+          <button 
+            onClick={() => setIsDeleteMode(!isDeleteMode)}
+            className={`p-2.5 border rounded-xl transition-colors ${isDeleteMode ? 'border-red-500 bg-red-500 text-white shadow-md' : 'border-red-100 text-red-500 bg-red-50 hover:bg-red-100'}`}
+          >
+            {isDeleteMode ? <X className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+          </button>
         </div>
-    );
+      </div>
+
+      <div className="space-y-1">
+        {loading ? (
+          <div className="py-20 flex justify-center text-slate-400 font-bold italic"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Syncing records...</div>
+        ) : reports.length === 0 ? (
+          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+            No WPR records found for this period
+          </div>
+        ) : (
+          reports.map((report) => (
+            <div 
+              key={report.id} 
+              onClick={() => handleOpenDetails(report)}
+              className={`flex items-center justify-between py-5 border-b border-slate-100 transition-all group ${!isDeleteMode ? 'cursor-pointer hover:bg-slate-50/50' : ''}`}
+            >
+              <div className="space-y-1">
+                <p className="text-[13px] font-black text-slate-800">
+                  {`${formatDate(report.weekStartDate || report.createdAt)} to ${formatDate(report.weekEndDate || report.createdAt)}`}
+                </p>
+                {report.reportNo && (
+                  <p className="text-[11px] font-bold text-slate-400">
+                    Report No: <span className="text-[#0066CC]">{report.reportNo}</span>
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-6">
+                {isDeleteMode ? (
+                    <button onClick={(e) => handleDeleteRow(e, report.id)} className="p-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors animate-in zoom-in">
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                ) : (
+                    report.status && (
+                      <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${
+                        report.status.toUpperCase() === 'APPROVED' ? 'bg-[#00A86B] text-white' : 'bg-[#0066CC] text-white'
+                      }`}>
+                        {report.status.toUpperCase() === 'APPROVED' ? 'Approved' : 'Submitted'}
+                      </span>
+                    )
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <CreateWPRModal isOpen={isCreateModalOpen} onClose={() => { setIsCreateModalOpen(false); fetchReports(); }} onSuccess={fetchReports} projectId={projectId} />
+      <WPRDetailsModal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} wpr={selectedReport} />
+    </div>
+  );
 };
 
 export default WPRListPage;
