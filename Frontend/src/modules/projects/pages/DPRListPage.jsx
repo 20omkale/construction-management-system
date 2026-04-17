@@ -1,6 +1,3 @@
-// File 1: Frontend/src/modules/projects/pages/DPRListPage.jsx
-// This is the COMBINED page with the DPR/WPR toggle, restoring your exact UI flow.
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus, Filter, Calendar, Trash2, ChevronDown, Loader2, X, RefreshCw } from 'lucide-react';
@@ -46,8 +43,12 @@ const DPRListPage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchReports = async () => {
-    setLoading(true);
+  // 🚨 ADDED: showLoader flag for silent polling
+  const fetchReports = async (showLoader = true) => {
+    // Prevent event objects from overriding the boolean
+    const shouldShowLoader = typeof showLoader === 'boolean' ? showLoader : true;
+    
+    if (shouldShowLoader) setLoading(true);
     try {
       if (reportType === 'DPR') {
         const queryParams = { 
@@ -102,12 +103,19 @@ const DPRListPage = () => {
       console.error("Error fetching reports:", error);
       setReports([]); 
     } finally {
-      setLoading(false);
+      if (shouldShowLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReports();
+    fetchReports(true); // Initial load with spinner
+
+    // 🚨 SILENT POLLING: Fetch in background every 15 seconds for real-time sync with Inspection
+    const intervalId = setInterval(() => {
+        fetchReports(false);
+    }, 15000);
+
+    return () => clearInterval(intervalId);
   }, [projectId, reportType, selectedDate, selectedMonthYear, selectedWeek, statusFilter]);
 
   const handleOpenDetails = async (report) => {
@@ -150,7 +158,7 @@ const DPRListPage = () => {
         try {
             if (reportType === 'DPR') await dprService.deleteDPR(id);
             else await dprService.deleteWPR(id);
-            fetchReports();
+            fetchReports(true);
         } catch (err) {
             alert(err.response?.data?.message || "Failed to delete report.");
         }
@@ -161,6 +169,22 @@ const DPRListPage = () => {
     if (!dateString) return 'Unknown Date';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // 🚨 ADDED: Dynamic Badge Renderer mapping DB status to UI
+  const renderStatusBadge = (status) => {
+    if (!status) return null;
+    const s = status.toUpperCase();
+    
+    if (s === 'COMPLETED' || s === 'APPROVED') {
+        return <span className="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase bg-[#00A86B] text-white">Approved</span>;
+    }
+    if (s === 'REVIEW' || s === 'REJECTED') {
+        return <span className="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase bg-[#EF4444] text-white">Rejected</span>;
+    }
+    
+    // Default to Submitted for TODO, IN_PROGRESS, PENDING
+    return <span className="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase bg-[#0066CC] text-white">Submitted</span>;
   };
 
   return (
@@ -185,7 +209,7 @@ const DPRListPage = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <button onClick={fetchReports} className="p-2.5 border border-slate-200 rounded-xl text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Sync Real-Time Data">
+          <button onClick={() => fetchReports(true)} className="p-2.5 border border-slate-200 rounded-xl text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Sync Real-Time Data">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
@@ -230,8 +254,9 @@ const DPRListPage = () => {
                   <div className="absolute top-full mt-2 right-0 w-48 bg-white border border-slate-100 rounded-[1rem] shadow-xl z-50 p-2">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2 mt-2">Filter Status</p>
                       <button onClick={() => { setStatusFilter(''); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === '' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>All Reports</button>
-                      <button onClick={() => { setStatusFilter('APPROVED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === 'APPROVED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Approved</button>
-                      <button onClick={() => { setStatusFilter('SUBMITTED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg ${statusFilter === 'SUBMITTED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Submitted</button>
+                      <button onClick={() => { setStatusFilter('COMPLETED'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === 'COMPLETED' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Approved</button>
+                      <button onClick={() => { setStatusFilter('TODO'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg mb-1 ${statusFilter === 'TODO' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Submitted</button>
+                      <button onClick={() => { setStatusFilter('REVIEW'); setIsFilterOpen(false); }} className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg ${statusFilter === 'REVIEW' ? 'bg-[#F1F5F9] text-[#0066CC]' : 'text-slate-600 hover:bg-slate-50'}`}>Rejected</button>
                   </div>
               )}
           </div>
@@ -293,13 +318,8 @@ const DPRListPage = () => {
                         <Trash2 className="w-4 h-4" />
                     </button>
                 ) : (
-                    report.status && (
-                      <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${
-                        report.status.toUpperCase() === 'APPROVED' ? 'bg-[#00A86B] text-white' : 'bg-[#0066CC] text-white'
-                      }`}>
-                        {report.status.toUpperCase() === 'APPROVED' ? 'Approved' : 'Submitted'}
-                      </span>
-                    )
+                    // 🚨 USE DYNAMIC BADGE RENDERER
+                    renderStatusBadge(report.status)
                 )}
               </div>
             </div>
@@ -308,9 +328,9 @@ const DPRListPage = () => {
       </div>
 
       {reportType === 'DPR' ? (
-        <CreateDPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={fetchReports} projectId={projectId} />
+        <CreateDPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={() => fetchReports(true)} projectId={projectId} />
       ) : (
-        <CreateWPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={fetchReports} projectId={projectId} />
+        <CreateWPRModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={() => fetchReports(true)} projectId={projectId} />
       )}
 
       {reportType === 'DPR' ? (
@@ -322,7 +342,7 @@ const DPRListPage = () => {
                 if (window.confirm("Delete this report permanently?")) {
                     await dprService.deleteDPR(id);
                     setIsDetailsModalOpen(false);
-                    fetchReports();
+                    fetchReports(true);
                 }
             }}
           />
