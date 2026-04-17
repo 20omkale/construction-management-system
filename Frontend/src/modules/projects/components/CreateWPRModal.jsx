@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Calendar, Cloud, CloudRain, Sun, Trash2, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Calendar, Trash2, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { getWPRPreviewAPI, createWPRAPI } from '../services/wpr.service';
+import { 
+    getWeeklyReportPreview as getWPRPreviewAPI, 
+    createWPR as createWPRAPI,
+    getProjectInventory // 🚨 Import the fixed inventory function
+} from '../services/project.service';
 
 const SecureMediaFetcher = ({ file, getFileUrl, isDoc }) => {
     const [url, setUrl] = useState(null);
@@ -15,9 +19,11 @@ const SecureMediaFetcher = ({ file, getFileUrl, isDoc }) => {
             if (targetUrl.startsWith('blob:')) { if (isMounted) setUrl(targetUrl); return; }
 
             try {
+                // Force axios to try and download via the URL (to handle cors/auth)
                 const response = await axios.get(targetUrl, { responseType: 'blob' });
                 if (isMounted) setUrl(URL.createObjectURL(response.data));
             } catch (e) {
+                // Fallback to direct URL if blob fetch fails
                 if (isMounted) setUrl(targetUrl);
             }
         };
@@ -47,7 +53,7 @@ const SecureMediaFetcher = ({ file, getFileUrl, isDoc }) => {
 
     return (
         <a href={url} target="_blank" rel="noreferrer" className="block relative">
-            <img src={url} alt="Site" className="aspect-square w-full object-cover rounded-xl border border-slate-200 hover:border-blue-500 transition-colors bg-slate-50" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}/>
+            <img src={url} alt="Site" className="aspect-square w-full object-cover rounded-xl border border-slate-200 hover:border-[#0f62fe] transition-colors bg-slate-50" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}/>
             <div style={{display: 'none'}} className="aspect-square border border-slate-100 rounded-2xl flex-col items-center justify-center bg-red-50 text-red-300"><ImageIcon className="w-6 h-6 mb-1" /><span className="text-[9px] font-bold text-center px-1">File Missing</span></div>
         </a>
     );
@@ -75,9 +81,10 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                     const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5001';
                     const headers = { Authorization: `Bearer ${token}` };
 
+                    // 🚨 FIXED: Inventory URL now matches backend router.get('/project/:projectId')
                     const [tasksRes, invRes, subsRes] = await Promise.allSettled([
                         axios.get(`${BASE_URL}/api/v1/tasks?projectId=${projectId}`, { headers }),
-                        axios.get(`${BASE_URL}/api/v1/inventory?projectId=${projectId}`, { headers }),
+                        axios.get(`${BASE_URL}/api/v1/inventory/project/${projectId}`, { headers }),
                         axios.get(`${BASE_URL}/api/v1/subcontractors?projectId=${projectId}`, { headers })
                     ]);
 
@@ -103,7 +110,6 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                 setWeekData(res.data);
             } else {
                 setWeekData(null);
-                alert("No DPRs found for this week. Cannot aggregate data.");
             }
         } catch (err) { 
             console.error("Aggregation error:", err); 
@@ -153,32 +159,28 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
 
     const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5001';
     
-    // 🚨 FIX: INTELLIGENT DYNAMIC ROUTING FOR DOCUMENTS VS PHOTOS
+    // 🚨 FIXED: FORCING BASE_URL TO PREVENT IP TIMEOUTS (ERR_CONNECTION_TIMED_OUT)
     const getFileUrl = useCallback((file) => {
         if (!file) return null;
         if (file instanceof File) return URL.createObjectURL(file);
 
-        let pathStr = typeof file === 'string' ? file : (file.imageUrl || file.url || file.fileUrl || file.filePath || file.name || file.fileName || file.path || '');
+        let pathStr = typeof file === 'string' ? file : (file.imageUrl || file.url || file.fileUrl || file.filePath || '');
         if (!pathStr || typeof pathStr !== 'string') return null;
         
         pathStr = pathStr.replace(/['"\[\]]/g, '');
-        if (pathStr.startsWith('blob:') || pathStr.startsWith('http')) return pathStr;
+        if (pathStr.startsWith('blob:')) return pathStr;
 
-        // 1. If backend stored the actual relative path, respect it completely
-        let normalizedPath = pathStr.replace(/\\/g, '/');
-        if (normalizedPath.includes('uploads/')) {
-            const exactPath = normalizedPath.substring(normalizedPath.indexOf('uploads/'));
-            return `${BASE_URL}/${exactPath}`;
+        // If backend sends an absolute URL with a wrong IP, we strip it and use BASE_URL
+        let relativePath = pathStr;
+        if (pathStr.includes('/uploads/')) {
+            relativePath = pathStr.substring(pathStr.indexOf('uploads/'));
+        } else {
+            const filename = pathStr.split('/').pop();
+            const isDocument = filename.match(/\.(pdf|doc|docx|txt|xls|xlsx|csv)$/i);
+            relativePath = `uploads/${isDocument ? 'documents' : 'dpr-photos'}/${filename}`;
         }
         
-        // 2. If only the filename was stored, auto-detect the correct folder by extension
-        const filename = normalizedPath.split('/').pop().split('?')[0];
-        if (!filename || filename.length < 4) return null;
-
-        const isDocument = filename.match(/\.(pdf|doc|docx|txt|xls|xlsx|csv)$/i);
-        const targetFolder = isDocument ? 'documents' : 'dpr-photos';
-        
-        return `${BASE_URL}/uploads/${targetFolder}/${filename}`;
+        return `${BASE_URL}/${relativePath.startsWith('/') ? relativePath.substring(1) : relativePath}`;
     }, [BASE_URL]);
 
     const extractAllMedia = (source) => {
@@ -226,6 +228,7 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
 
     const wprData = weekData?.aggregatedData || weekData || {};
     
+    // 🚨 FIXED: DEFINING ALL VARIABLES TO PREVENT REFERENCE ERROR
     const parsedTasks = parseNestedJSON(wprData.tasks);
     const parsedMaterials = parseNestedJSON(wprData.materials?.consumed || wprData.materials);
     const parsedEquipment = parseNestedJSON(wprData.equipment);
@@ -266,20 +269,22 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                 weekStartDate: weekData.weekInfo.startDate,
                 weekEndDate: weekData.weekInfo.endDate,
                 description: formData.description,
-                notes: formData.notes,
-                previewData: weekData,
-                nextWeekPlanning: formData.nextWeekTasks.filter(t => t.task.trim() !== '')
+                previewData: weekData, 
+                nextWeekPlanning: formData.nextWeekTasks.filter(t => t.task.trim() !== ''),
+                notes: formData.notes 
             };
 
             await createWPRAPI(payload);
-            setTimeout(() => {
-                if (onSuccess) onSuccess(); 
-                onClose();
-                setIsSaving(false);
-            }, 500);
+            if (onSuccess){
+                onSuccess();
+
+            }  
+            onClose();
         } catch (error) {
+            console.error("WPR Creation Error:", error);
+            alert(error.response?.data?.message || error.message || "Failed to save the WPR.");
+        } finally {
             setIsSaving(false);
-            alert(error.message || "Failed to save the WPR. Please try again.");
         }
     };
 
@@ -303,16 +308,16 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                                 type="date" 
                                 value={formData.weekDate} 
                                 onChange={e => setFormData({...formData, weekDate: e.target.value})} 
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-[#0066CC] appearance-none bg-white" 
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-[#0f62fe] appearance-none bg-white" 
                             />
-                            <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0066CC] pointer-events-none" />
+                            <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0f62fe] pointer-events-none" />
                         </div>
                     </div>
 
                     {fetchingData ? (
                         <div className="flex flex-col items-center justify-center py-20 gap-4">
-                            <Loader2 className="w-8 h-8 animate-spin text-[#0066CC]" />
-                            <p className="text-[10px] font-black text-[#0066CC] uppercase tracking-widest">Aggregating Weekly Data...</p>
+                            <Loader2 className="w-8 h-8 animate-spin text-[#0f62fe]" />
+                            <p className="text-[10px] font-black text-[#0f62fe] uppercase tracking-widest">Aggregating Weekly Data...</p>
                         </div>
                     ) : weekData ? (
                         <div className="space-y-8 animate-in fade-in duration-500">
@@ -330,7 +335,7 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
 
                             <div className="space-y-1">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
-                                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-[#0066CC] min-h-[80px] resize-none" placeholder="Enter the description"></textarea>
+                                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-[#0f62fe] min-h-[80px] resize-none" placeholder="Enter the description"></textarea>
                             </div>
 
                             <div className="space-y-4 pt-4 border-t border-slate-100">
@@ -344,14 +349,14 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                                         return (
                                             <div key={i} className="relative w-4 flex flex-col justify-end h-full gap-1">
                                                 <div className="w-full bg-[#00B69B] rounded-full" style={{ height: `${staffHeight}%`, minHeight: '4px' }}></div>
-                                                <div className="w-full bg-[#0066CC] rounded-full" style={{ height: `${workerHeight}%`, minHeight: '4px' }}></div>
+                                                <div className="w-full bg-[#0f62fe] rounded-full" style={{ height: `${workerHeight}%`, minHeight: '4px' }}></div>
                                                 <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-400">{d.date}</span>
                                             </div>
                                         );
                                     })}
                                 </div>
                                 <div className="flex justify-center gap-10 mt-6">
-                                    <div className="flex items-center gap-2"><div className="w-4 h-2 bg-[#0066CC] rounded-full"></div><span className="text-[10px] font-bold text-slate-500">{weekData.attendance?.summary?.avgWorkers || 0}<br/>Workers (avg)</span></div>
+                                    <div className="flex items-center gap-2"><div className="w-4 h-2 bg-[#0f62fe] rounded-full"></div><span className="text-[10px] font-bold text-slate-500">{weekData.attendance?.summary?.avgWorkers || 0}<br/>Workers (avg)</span></div>
                                     <div className="flex items-center gap-2"><div className="w-4 h-2 bg-[#00B69B] rounded-full"></div><span className="text-[10px] font-bold text-slate-500">{weekData.attendance?.summary?.avgStaff || 0}<br/>Staff (avg)</span></div>
                                 </div>
                             </div>
@@ -386,7 +391,7 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                                     <FigmaRow label="Material" value={`₹ ${(weekData.budget?.materials || 0).toLocaleString()}`} isBlue />
                                     <FigmaRow label="Equipment" value={`₹ ${(weekData.budget?.equipment || 0).toLocaleString()}`} isBlue />
                                     <FigmaRow label="Sub-contractor" value={`₹ ${(weekData.budget?.subcontractor || 0).toLocaleString()}`} isBlue />
-                                    <div className="pt-3 border-t border-slate-200 flex justify-between font-black text-slate-800 text-[11px]"><span className="uppercase">Total Weekly Spend</span><span className="text-[#0066CC]">₹ {(weekData.budget?.used || weekData.budget?.total || 0).toLocaleString()}</span></div>
+                                    <div className="pt-3 border-t border-slate-200 flex justify-between font-black text-slate-800 text-[11px]"><span className="uppercase">Total Weekly Spend</span><span className="text-[#0f62fe]">₹ {(weekData.budget?.used || weekData.budget?.total || 0).toLocaleString()}</span></div>
                                 </div>
                             </FigmaSection>
 
@@ -420,7 +425,7 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                         {formData.nextWeekTasks.map((t, idx) => (
                             <div key={t.id} className="flex gap-2">
                                 <input 
-                                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-[#0066CC] bg-white" 
+                                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-[#0f62fe] bg-white" 
                                     placeholder="Enter planned task..." 
                                     value={t.task}
                                     onChange={(e) => {
@@ -432,7 +437,7 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                                 <button type="button" onClick={() => setFormData({...formData, nextWeekTasks: formData.nextWeekTasks.filter(x => x.id !== t.id)})} className="p-3 text-red-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                             </div>
                         ))}
-                        <button type="button" onClick={() => setFormData({...formData, nextWeekTasks: [...formData.nextWeekTasks, {id: Date.now(), task: '', description: ''}]})} className="w-full py-3 border border-dashed border-blue-200 text-[#0066CC] font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-blue-50 transition-all">+ Add Task</button>
+                        <button type="button" onClick={() => setFormData({...formData, nextWeekTasks: [...formData.nextWeekTasks, {id: Date.now(), task: '', description: ''}]})} className="w-full py-3 border border-dashed border-blue-200 text-[#0f62fe] font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-blue-50 transition-all">+ Add Task</button>
                     </div>
 
                     <div className="space-y-1">
@@ -446,7 +451,7 @@ const CreateWPRModal = ({ isOpen, onClose, projectId, onSuccess }) => {
                     <button 
                         onClick={handleSave} 
                         disabled={!weekData || isSaving} 
-                        className="px-16 py-3.5 bg-[#0066CC] text-white font-black text-[13px] rounded-xl hover:bg-blue-800 transition-all disabled:opacity-50 shadow-md flex items-center gap-2"
+                        className="px-16 py-3.5 bg-[#0f62fe] text-white font-black text-[13px] rounded-xl hover:bg-blue-800 transition-all disabled:opacity-50 shadow-md flex items-center gap-2"
                     >
                         {isSaving && <Loader2 className="animate-spin" size={16} />} Create WPR
                     </button>
@@ -469,7 +474,7 @@ const FigmaRow = ({ label, value, isBlue, badge, color }) => (
         {badge ? (
             <span className={`px-3 py-1 rounded-md font-black text-[9px] uppercase tracking-widest text-white ${color === 'emerald' ? 'bg-[#00B69B]' : color === 'amber' ? 'bg-[#FF9500]' : 'bg-[#FF3B30]'}`}>{badge}</span>
         ) : (
-            <span className={`font-black ${isBlue ? 'text-[#0066CC]' : 'text-slate-800'}`}>{value}</span>
+            <span className={`font-black ${isBlue ? 'text-[#0f62fe]' : 'text-slate-800'}`}>{value}</span>
         )}
     </div>
 );
