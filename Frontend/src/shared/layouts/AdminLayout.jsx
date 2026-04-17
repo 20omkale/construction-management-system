@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { Bell, Search, ChevronDown } from 'lucide-react';
+import { ClipboardCheck } from 'lucide-react';
 
 const AdminLayout = () => {
   const location = useLocation();
@@ -69,6 +70,7 @@ const AdminLayout = () => {
           <NavLink to="/projects" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive || location.pathname.includes('/projects') ? 'bg-blue-50/80 text-[#0f62fe]' : 'text-slate-600 hover:bg-slate-50'}`}>Projects</NavLink>
           <NavLink to="/inventory" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive && !location.pathname.includes('/projects') ? 'bg-blue-50/80 text-[#0f62fe]' : 'text-slate-600 hover:bg-slate-50'}`}>Inventory</NavLink>
           <NavLink to="/approvals" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe]' : 'text-slate-600 hover:bg-slate-50'}`}>Approvals</NavLink>
+          <NavLink to="/inspection" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe]' : 'text-slate-600 hover:bg-slate-50'}`}>Inspection</NavLink>
           <NavLink to="/profile" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe]' : 'text-slate-600 hover:bg-slate-50'}`}>Profile</NavLink>
         </nav>
 

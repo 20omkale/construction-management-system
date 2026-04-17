@@ -21,6 +21,7 @@ import PurchaseOrderListPage from '../../modules/inventory/pages/PurchaseOrderLi
 import MaterialRequestListPage from '../../modules/inventory/pages/MaterialRequestListPage';
 import MaterialRequestDetailsPage from '../../modules/inventory/pages/MaterialRequestDetailsPage';
 import SupplierListPage from '../../modules/inventory/pages/SupplierListPage'; 
+import InspectionListPage from '../../modules/inspection/pages/InspectionListPage';
 
 // Profile & Roles Management
 import ManageUsersRoles from '../../modules/profile/pages/ManageUsersRoles';
@@ -87,6 +88,9 @@ const AppRouter = () => {
                                 <Route path="/inventory/requests" element={<MaterialRequestListPage />} />
                                 <Route path="/inventory/requests/:id" element={<MaterialRequestDetailsPage />} />
                                 <Route path="/inventory/suppliers" element={<SupplierListPage />} />
+
+                                {/* Inspection Routes */}
+                                <Route path="/inspection" element={<InspectionListPage />} />
                                 
                             </Route>
                         </Route>
