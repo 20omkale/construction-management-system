@@ -2,17 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { useTheme } from '../../app/providers/ThemeProvider'; // 🚨 1. Import Global Theme
-import { 
-  Bell, Search, ChevronDown, LayoutGrid, 
-  FolderKanban, Wallet, ClipboardCheck, 
-  SearchCheck, User 
-} from 'lucide-react';
+import { Bell, Search, ChevronDown, LayoutGrid, Building2, User } from 'lucide-react';
 
-const AdminLayout = () => {
+const SuperAdminLayout = () => {
   const location = useLocation();
   const { user } = useAuth(); 
   
-  // 🚨 2. Connect to global theme (No more local useState fighting the provider!)
+  // 🚨 2. Connect to global theme instead of local useState('Light')
   const { theme, setTheme } = useTheme(); 
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -33,6 +29,8 @@ const AdminLayout = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 🚨 3. Removed the local useEffect that was fighting with the ThemeProvider
+
   const handleLogout = () => {
     localStorage.clear();
     window.location.href = '/';
@@ -41,18 +39,18 @@ const AdminLayout = () => {
   const getBreadcrumb = () => {
     const pathnames = location.pathname.split('/').filter((x) => x);
     return (
-      // 🚨 Added dark:text-white to ensure breadcrumbs don't vanish
+      // Added dark:text-white to ensure it's always visible
       <div className="flex items-center text-lg font-bold text-gray-900 dark:text-white tracking-tight">
-        {pathnames.length > 1 ? pathnames[1].charAt(0).toUpperCase() + pathnames[1].slice(1) : "Admin"}
+        {pathnames.length > 1 ? pathnames[1].charAt(0).toUpperCase() + pathnames[1].slice(1) : "Dashboard"}
       </div>
     );
   };
 
   return (
-    // 🚨 Main wrapper anchors the dark mode background
+    // Added dark:bg-[#0b1120] to the main wrapper
     <div className="flex h-screen w-full bg-[#f8fafc] dark:bg-[#0b1120] overflow-hidden font-sans transition-colors duration-300">
       
-      {/* SIDEBAR */}
+      {/* Sidebar */}
       <aside className="w-[260px] bg-white dark:bg-[#1e293b] border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col z-50 shrink-0 transition-colors duration-300">
         <div className="h-24 px-8 flex items-center gap-3 shrink-0">
           <div className="w-8 h-8 bg-black dark:bg-[#0f62fe] rounded flex items-end justify-center">
@@ -64,22 +62,13 @@ const AdminLayout = () => {
         </div>
         
         <nav className="flex-1 p-4 space-y-1">
-          <NavLink to="/admin/dashboard" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+          <NavLink to="/superadmin/dashboard" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
             <LayoutGrid size={18} /> Dashboard
           </NavLink>
-          <NavLink to="/projects" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
-            <FolderKanban size={18} /> Projects
+          <NavLink to="/superadmin/companies" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+            <Building2 size={18} /> Companies
           </NavLink>
-          <NavLink to="/inventory" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
-            <Wallet size={18} /> Inventory
-          </NavLink>
-          <NavLink to="/approvals" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
-            <ClipboardCheck size={18} /> Approvals
-          </NavLink>
-          <NavLink to="/inspection" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
-            <SearchCheck size={18} /> Inspection
-          </NavLink>
-          <NavLink to="/profile" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+          <NavLink to="/superadmin/profile" className={({isActive}) => `flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-bold transition-colors ${isActive ? 'bg-blue-50/80 text-[#0f62fe] dark:bg-[#0f62fe]/20 dark:text-[#60a5fa]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
             <User size={18} /> Profile
           </NavLink>
         </nav>
@@ -103,7 +92,7 @@ const AdminLayout = () => {
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         
-        {/* HEADER */}
+        {/* GLOBAL HEADER */}
         <header className="h-24 flex items-center justify-between px-8 bg-[#f8fafc] dark:bg-[#0b1120] border-b border-transparent dark:border-slate-800 shrink-0 transition-colors duration-300">
           <div>{getBreadcrumb()}</div>
           
@@ -114,7 +103,7 @@ const AdminLayout = () => {
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
                 className="ml-3 bg-transparent outline-none text-sm w-full text-gray-700 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 font-medium"
-                placeholder="Search projects, users..."
+                placeholder="Search global companies..."
               />
             </div>
 
@@ -127,12 +116,12 @@ const AdminLayout = () => {
                 className="flex items-center gap-3 bg-white dark:bg-[#1e293b] px-4 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors" 
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
               >
-                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold uppercase">
-                    {user?.name ? user.name.charAt(0) : 'A'}
+                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
+                    {user?.name ? user.name.charAt(0).toUpperCase() : 'S'}
                 </div>
                 <div className="pr-2">
-                  <div className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{user?.name || "Admin"}</div>
-                  <div className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-wider">{user?.userType || "COMPANY_ADMIN"}</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{user?.name || "System Admin"}</div>
+                  <div className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-wider">{user?.userType || "SUPER_ADMIN"}</div>
                 </div>
                 <ChevronDown size={14} className="text-gray-400 dark:text-slate-500" />
               </div>
@@ -146,7 +135,7 @@ const AdminLayout = () => {
           </div>
         </header>
 
-        {/* MAIN CONTENT AREA */}
+        {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8 pt-6">
             <Outlet context={{ globalSearch }} />
         </main>
@@ -155,4 +144,4 @@ const AdminLayout = () => {
   );
 };
 
-export default AdminLayout;
+export default SuperAdminLayout;
