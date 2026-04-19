@@ -1,31 +1,55 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+    // 1. Smart Initialization
+    const [theme, setTheme] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) return storedTheme;
+            
+            // Fallback: Check if their OS is in Dark Mode
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        return 'light';
+    });
 
+    // 2. Sync State with DOM and LocalStorage
     useEffect(() => {
         const root = window.document.documentElement;
+        
         if (theme === 'dark') {
             root.classList.add('dark');
+            root.style.colorScheme = 'dark'; // Fixes browser default scrollbars & inputs
         } else {
             root.classList.remove('dark');
+            root.style.colorScheme = 'light';
         }
+        
         localStorage.setItem('theme', theme);
     }, [theme]);
 
-    const toggleTheme = () => {
-        setTheme(prev => prev === 'light' ? 'dark' : 'all');
-    };
+    // 3. Auto-detect if user changes their Mac/Windows theme while using the app
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e) => {
+            // Only auto-switch if the user hasn't manually forced a preference
+            if (!localStorage.getItem('theme')) {
+                setTheme(e.matches ? 'dark' : 'light');
+            }
+        };
+        
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
 
-    // Correcting the above typo: 'all' -> 'dark'
-    const switchTheme = () => {
-        setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    const toggleTheme = () => {
+        setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
     return (
-        <ThemeContext.Provider value={{ theme, toggleTheme: switchTheme }}>
+        <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
             {children}
         </ThemeContext.Provider>
     );

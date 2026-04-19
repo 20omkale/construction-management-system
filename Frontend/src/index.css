@@ -1,48 +1,119 @@
 @import "tailwindcss";
 
-/* Custom Scrollbar */
+/* 🚨 REQUIRED FOR TAILWIND V4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   🌟 GOD-MODE DARK MODE INTERCEPTOR
+   Automatically converts all light-mode utility classes into an 
+   enterprise-grade dark theme without touching your React components.
+   ========================================================================== */
+
+html, body, #root {
+  @apply h-full w-full;
+}
+
+/* 1. Global Baseline */
+body {
+  @apply bg-[#f8fafc] text-slate-900 transition-colors duration-300 ease-in-out;
+}
+
+/* Catches the body AND any hardcoded light-hex backgrounds */
+.dark body, .dark .bg-[#f8fafc], .dark .bg-[#F8FAFC] {
+  background-color: #0b1120 !important; /* Deep Midnight Blue */
+  color: #f8fafc !important;
+}
+
+/* 2. Smart Headings (Catches all standard titles) */
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #f8fafc !important;
+}
+
+/* 3. Surface & Card Interceptor */
+/* Catches every single white card across your entire application */
+.dark .bg-white, .dark [class*="bg-white"] {
+  background-color: #1e293b !important; /* Professional Slate 800 */
+  border-color: #334155 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .bg-slate-50, .dark .bg-gray-50, 
+.dark [class*="bg-slate-50"], .dark [class*="bg-gray-50"] {
+  background-color: #0f172a !important; /* Slightly darker slate for secondary areas */
+}
+
+/* 4. Text Color Interceptor (Fixes the invisible text issue) */
+/* Dark grays/blacks flip to bright white */
+.dark .text-gray-900, .dark .text-slate-900, .dark .text-black, .dark .text-gray-800, .dark .text-slate-800,
+.dark [class*="text-gray-9"], .dark [class*="text-slate-9"], .dark [class*="text-gray-8"], .dark [class*="text-slate-8"] {
+  color: #f8fafc !important;
+}
+
+/* Medium grays flip to soft silver */
+.dark .text-gray-700, .dark .text-slate-700, .dark .text-gray-600, .dark .text-slate-600,
+.dark [class*="text-gray-7"], .dark [class*="text-slate-7"], .dark [class*="text-gray-6"], .dark [class*="text-slate-6"] {
+  color: #e2e8f0 !important;
+}
+
+/* Light grays flip to muted slate */
+.dark .text-gray-500, .dark .text-slate-500, .dark .text-gray-400, .dark .text-slate-400,
+.dark [class*="text-gray-5"], .dark [class*="text-slate-5"], .dark [class*="text-gray-4"], .dark [class*="text-slate-4"] {
+  color: #94a3b8 !important;
+}
+
+/* 5. Border Color Interceptor */
+/* Stops light gray borders from glowing brightly against dark backgrounds */
+.dark .border-gray-100, .dark .border-slate-100, .dark .border-gray-200, .dark .border-slate-200,
+.dark [class*="border-gray-1"], .dark [class*="border-slate-1"], .dark [class*="border-gray-2"], .dark [class*="border-slate-2"] {
+  border-color: #334155 !important;
+}
+
+/* 6. Form Inputs, Search Bars & Dropdowns */
+.dark input, .dark textarea, .dark select {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark input::placeholder, .dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* 7. Dim Pastel Badges (Prevents neon glow effect) */
+.dark .bg-blue-50, .dark [class*="bg-blue-50"] { background-color: rgba(15, 98, 254, 0.15) !important; border-color: rgba(15, 98, 254, 0.3) !important; }
+.dark .bg-emerald-50, .dark [class*="bg-emerald-50"] { background-color: rgba(16, 185, 129, 0.15) !important; border-color: rgba(16, 185, 129, 0.3) !important; }
+.dark .bg-orange-50, .dark [class*="bg-orange-50"] { background-color: rgba(249, 115, 22, 0.15) !important; border-color: rgba(249, 115, 22, 0.3) !important; }
+.dark .bg-purple-50, .dark [class*="bg-purple-50"] { background-color: rgba(168, 85, 247, 0.15) !important; border-color: rgba(168, 85, 247, 0.3) !important; }
+.dark .bg-red-50, .dark [class*="bg-red-50"] { background-color: rgba(239, 68, 68, 0.15) !important; border-color: rgba(239, 68, 68, 0.3) !important; }
+
+/* 8. Table Rows & Hover Effects */
+.dark .hover\:bg-gray-50:hover, .dark .hover\:bg-slate-50:hover,
+.dark tr:hover {
+  background-color: #334155 !important; 
+}
+
+/* ==========================================================================
+   UI UTILITIES (Scrollbars & Animations)
+   ========================================================================== */
+
 .custom-scrollbar {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1; 
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; 
-}
-
-/* Transitions */
-.page-fade-enter {
-  opacity: 0;
-  -webkit-transform: translateY(8px);
-  transform: translateY(8px);
-  transition: all 0.3s ease-out;
-}
-
-.page-fade-active {
-  opacity: 1;
-  -webkit-transform: translateY(0);
-  transform: translateY(0);
-}
-
-/* Dropdowns */
 .glass-dropdown {
   background: rgba(255, 255, 255, 0.95);
-  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+.dark .glass-dropdown {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
 }
